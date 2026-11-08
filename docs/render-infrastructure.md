@@ -3,7 +3,7 @@
 `nord_render` starts the graphics infrastructure only. It knows about a native
 presentation surface and GPU resources, not Nord's voxel world, camera, game
 rules, or scene. `src/render` owns the game's clear color and decides when the
-application asks the renderer to present. `nord_app` is the game-facing facade;
+application asks the renderer to present. `nordtech` is the game-facing facade;
 the game does not depend on `nord_render`, `nord_platform`, or native handles.
 
 ## Current implementation
@@ -33,7 +33,7 @@ committed upload buffers. There is no geometry or 3D rendering in Part 1.
 ## Part 2: resource-system contracts
 
 The resource-system API now lives in isolated modules under `nord_render` and
-is re-exported to the game only through `nord_app`:
+is re-exported to the game only through `nordtech`:
 
 - `allocator` provides alignment-aware, best-fit suballocation for device-local
   buffer, non-render-target texture, render-target texture, upload, and readback
@@ -78,7 +78,7 @@ is re-exported to the game only through `nord_app`:
   queue-idle wait.
 - `RenderServices` owns allocator, descriptor and pipeline bookkeeping for the
   renderer lifetime. It stays private to the renderer implementation;
-  `nord_app::ApplicationRenderer` exposes operation-specific resource methods
+  `nordtech::ApplicationRenderer` exposes operation-specific resource methods
   and a GPU allocator statistics snapshot without handing `src` the service
   container.
 
@@ -87,7 +87,7 @@ resources and views, compile/reflect HLSL, create cached root signatures/PSOs,
 bind reflected CBV/SRV/UAV/sampler slots, clear offscreen color/depth
 attachments, issue a triangle draw and compute dispatch, and synchronously read
 back pixels. The bootstrap immediate-pass APIs are backend-neutral and live in
-`nord_render`; `nord_app` owns the game-facing queue facade. The render graph
+`nord_render`; `nordtech` owns the game-facing queue facade. The render graph
 infers read/write hazards, builds deterministic pass order, and plans
 transition/UAV/aliasing barriers. It calculates transient texture lifetimes
 and groups non-overlapping textures with compatible D3D12 heap classes. Each
@@ -174,7 +174,7 @@ shader-artifact constructor, resource, descriptor, pipeline, and
 command-encoding infrastructure.
 
 `nord_platform` exposes a hidden integration token for a live native window;
-`nord_app` passes it directly to `nord_render`. The token never reaches game
+`nordtech` passes it directly to `nord_render`. The token never reaches game
 modules. The runtime handles normalized resize events. During shutdown the
 renderer waits for GPU completion and releases its swapchain before
 `nord_platform` destroys the HWND.
@@ -191,7 +191,7 @@ encoder callbacks and D3D12 pass command lists are recorded on workers.
 - [Microsoft: `SetMaximumFrameLatency`](https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_3/nf-dxgi1_3-idxgiswapchain2-setmaximumframelatency) requires the waitable-object flag on swapchain creation; the implementation sets both together.
 - [Khronos: Vulkan threading guide](https://docs.vulkan.org/guide/latest/threading.html) describes host-side command recording and separate per-thread command pools. Each D3D12 pass recorder owns its allocator/list pair under the same rule.
 - [Khronos: Vulkan memory allocation guide](https://docs.vulkan.org/guide/latest/memory_allocation.html) motivates suballocation over frequent device-memory allocations. The first upload arena is fence-retired and linear; pooled default-heap allocation remains a later part of the renderer.
-- [`raw-window-handle` 0.6.2](https://docs.rs/raw-window-handle/0.6.2/raw_window_handle/) provides the cross-platform window-handle interchange types used between PAL and the renderer; the platform-specific implementation stays behind `nord_app`.
+- [`raw-window-handle` 0.6.2](https://docs.rs/raw-window-handle/0.6.2/raw_window_handle/) provides the cross-platform window-handle interchange types used between PAL and the renderer; the platform-specific implementation stays behind `nordtech`.
 - [Microsoft: D3D12 residency and placed resources](https://learn.microsoft.com/en-us/windows/win32/direct3d12/residency) and [`GetResourceAllocationInfo`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-getresourceallocationinfo) require allocations to respect device-reported size/alignment, and call out distinct heap/resource behavior.
 - [`CreatePlacedResource`](https://learn.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12device-createplacedresource) requires the heap offset to satisfy the resource alignment and fit the full allocation.
 - [Microsoft: shader-visible descriptor heaps](https://learn.microsoft.com/en-us/windows/win32/direct3d12/shader-visible-descriptor-heaps) explains the distinct CBV/SRV/UAV and sampler heaps, hardware limits, and why switching heaps can cause GPU idle waits. This informs the stable, separate descriptor spaces.

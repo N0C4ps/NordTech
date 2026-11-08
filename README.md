@@ -20,6 +20,8 @@ cargo lint
 cargo build --workspace --locked
 ```
 
-`nord_app` is the application-facing facade. Other crates can be added directly
-when a project needs their APIs. Internal crate dependencies use workspace-local
-paths and resolve as part of this workspace.
+`nordtech` is the stable, general-purpose public API facade. Each capability is
+also available from its own crate, so a consuming program can choose the crates
+it needs and compose them explicitly. Crates should not start or coordinate
+other engine capabilities implicitly; cross-crate interaction belongs in the
+consuming program.

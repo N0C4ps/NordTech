@@ -40,7 +40,7 @@ houver uma camada de profiling definida.
 de jogo ao acumulador de passo fixo. Guarda também passos de simulação
 agendados, backlog descartado e a última amostra de FPS; o evento único de
 encerramento inclui essas métricas. As APIs públicas chegam ao jogo por
-`nord_app`.
+`nordtech`.
 
 ```rust
 let frame = clock.tick();

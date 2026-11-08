@@ -2,9 +2,9 @@
 
 ## Ownership and API boundary
 
-`crates/nord_log` implements the process-wide logging pipeline. `crates/nord_app`
+`crates/nord_log` implements the process-wide logging pipeline. `crates/nordtech`
 owns its application facade and installs it during composition. Game modules
-emit events through the macros re-exported from `nord_app`; they do not depend
+emit events through the macros re-exported from `nordtech`; they do not depend
 directly on `nord_log` or its implementation crates. Engine libraries may use
 the standard `tracing` or `log` facades; the Nord subscriber also bridges
 `log` records into the same pipeline.
@@ -102,7 +102,7 @@ Each record includes timestamp, severity text and OpenTelemetry-compatible
 severity number, event name, target/instrumentation scope, event fields, source
 location, thread identity, and current span stack. The application creates a
 root span with game name/version, process ID, and active platform. Use spans to
-attach stable context to operations, and use `#[nord_app::instrument]` or
+attach stable context to operations, and use `#[nordtech::instrument]` or
 `Instrument` when work moves to another task/thread; thread-local span context
 does not cross arbitrary thread boundaries automatically.
 When an event supplies a string field named `event_name`, the logger promotes

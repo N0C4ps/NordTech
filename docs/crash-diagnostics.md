@@ -4,7 +4,7 @@
 
 `crates/nord_crash` owns the process panic hook, local panic reports, and the
 optional native minidump monitor. The crate does not depend on `nord_log`.
-`nord_app` exposes it through `ApplicationCrashReporter`, and the game registers
+`nordtech` exposes it through `ApplicationCrashReporter`, and the game registers
 that service next to `ApplicationLogger` during bootstrap.
 
 The logger provides only a bounded `panic_flush_callback`. The panic hook calls

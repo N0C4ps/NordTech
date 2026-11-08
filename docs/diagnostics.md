@@ -3,9 +3,9 @@
 ## Boundary and API
 
 `crates/nord_diagnostics` centralizes application-level error context and
-invariant assertions. `crates/nord_app` owns the public facade exposed to the
+invariant assertions. `crates/nordtech` owns the public facade exposed to the
 game. Code in `src/` imports `ApplicationResult`, `ApplicationErrorContext`,
-`ensure!`, and invariant macros from `nord_app`; it does not depend directly on
+`ensure!`, and invariant macros from `nordtech`; it does not depend directly on
 `nord_diagnostics` or `anyhow`.
 
 The crate uses `anyhow` for application composition: errors can accumulate
@@ -22,7 +22,7 @@ context where the caller knows what operation was attempted, then propagate the
 error with `?`:
 
 ```rust
-use nord_app::{ApplicationErrorContext, ApplicationResult};
+use nordtech::{ApplicationErrorContext, ApplicationResult};
 
 fn load_game_settings() -> ApplicationResult<GameSettings> {
     let settings = read_settings_file()

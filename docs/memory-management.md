@@ -3,7 +3,7 @@
 ## Responsabilidade e integração
 
 `crates/nord_memory` fornece políticas explícitas para memória gerenciada pela
-engine. `nord_app` expõe `ApplicationMemoryManager`; `src/` recebe esse serviço
+engine. `nordtech` expõe `ApplicationMemoryManager`; `src/` recebe esse serviço
 na composição da aplicação. Outras crates não dependem diretamente de
 `nord_memory` e continuam livres para escolher estruturas de dados adequadas.
 

@@ -856,7 +856,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nord_app"
+name = "nordtech"
 version = "0.1.0"
 dependencies = [
  "nord_config",

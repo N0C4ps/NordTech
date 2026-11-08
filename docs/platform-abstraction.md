@@ -3,13 +3,13 @@
 ## Ownership and dependency direction
 
 `crates/nord_platform` implements reusable native platform capabilities. It
-contains no Nord gameplay rules. `crates/nord_app` owns the application-facing
+contains no Nord gameplay rules. `crates/nordtech` owns the application-facing
 facade (`ApplicationPlatform`) and is the only crate that depends on
 `nord_platform`. Game modules use that facade through the application service
 registry; game code must not import `nord_platform` or native OS APIs.
 
 This boundary lets the platform implementation evolve independently while
-keeping the game's integration contract in `nord_app`. Source compatibility
+keeping the game's integration contract in `nordtech`. Source compatibility
 depends on keeping that public contract compatible.
 
 ## Capabilities
@@ -74,7 +74,7 @@ main window during orderly shutdown. `WindowSystem` also destroys any remaining
 windows when dropped on the owner thread. Keep window procedure callbacks short
 because they block message processing on that thread.
 
-Window and lifecycle events are dispatched through the `nord_app` event facade
+Window and lifecycle events are dispatched through the `nordtech` event facade
 on the application thread. Keyboard and pointer events are delivered to the
 input facade, which tracks held state per window and clears it on focus loss.
 Game modules subscribe through these application-facing facades; they do not

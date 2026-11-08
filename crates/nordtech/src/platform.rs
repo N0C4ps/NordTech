@@ -49,7 +49,7 @@ impl Error for ApplicationPlatformError {
 /// Application-owned handle to platform capabilities.
 ///
 /// Keep this facade in the application service registry. Game modules consume
-/// `nord_app` APIs and do not depend directly on the implementation crate.
+/// `nordtech` APIs and do not depend directly on the implementation crate.
 pub struct ApplicationPlatform {
     inner: nord_platform::Platform,
 }

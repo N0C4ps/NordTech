@@ -254,7 +254,7 @@ impl WindowSystem {
     }
 
     /// Return the native window token for an engine-owned graphics backend.
-    /// This is an integration hook; game code should use the `nord_app` facade.
+    /// This is an integration hook; game code should use the `nordtech` facade.
     #[doc(hidden)]
     pub fn native_handle(
         &self,

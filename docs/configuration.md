@@ -1,7 +1,7 @@
 # Configuration system
 
 `nord_config` is the engine's format-independent configuration loader. The
-game defines its own typed schema in `src/app/config.rs`; `nord_app` re-exports
+game defines its own typed schema in `src/app/config.rs`; `nordtech` re-exports
 the loader as the stable application facade. This keeps the game independent
 from the loader implementation and lets each engine crate own only its own
 configuration types.

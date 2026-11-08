@@ -4,7 +4,7 @@
 
 `nord_math` owns game-independent numeric, geometric, and spatial primitives.
 Engine crates that need the primitives may depend on it; the root game package
-uses the stable `nord_app` facade (`ApplicationVec3`, `ApplicationMat4`,
+uses the stable `nordtech` facade (`ApplicationVec3`, `ApplicationMat4`,
 `ApplicationAabb3`, and related names). The game does not import implementation
 crate names.
 

@@ -189,7 +189,7 @@ impl Platform {
         self.windows.set_cursor_locked(handle, locked)
     }
 
-    /// Integration hook used by `nord_app` to bind a graphics surface to a window.
+    /// Integration hook used by `nordtech` to bind a graphics surface to a window.
     #[doc(hidden)]
     pub fn native_window_handle(
         &self,

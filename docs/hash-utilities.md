@@ -3,7 +3,7 @@
 ## Responsabilidade
 
 `crates/nord_hash` fornece hashes estáveis para conteúdo, arquivos e registros
-estruturados. `nord_app` reexporta uma fachada estável; o jogo e as crates
+estruturados. `nordtech` reexporta uma fachada estável; o jogo e as crates
 consumidoras não precisam conhecer a implementação BLAKE3 diretamente.
 
 ## Escolhas
@@ -25,7 +25,7 @@ consumidoras não precisam conhecer a implementação BLAKE3 diretamente.
 ## Exemplo para uma textura
 
 ```rust
-let digest = nord_app::ApplicationHashBuilder::new("nord.texture.cache.v1")
+let digest = nordtech::ApplicationHashBuilder::new("nord.texture.cache.v1")
     .field_u32("width", width)
     .field_u32("height", height)
     .field_str("format", format_name)

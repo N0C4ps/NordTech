@@ -7,7 +7,7 @@ typed listener dispatcher. `nord_inputs` owns normalized keyboard/pointer
 events, held-state tracking, and input subscriptions. `nord_platform` is the
 native producer: its backend translates operating-system messages into those
 contracts and places them in the existing bounded, timestamped platform event
-queue. `nord_app` exposes the stable `ApplicationEventSystem` and
+queue. `nordtech` exposes the stable `ApplicationEventSystem` and
 `ApplicationInputSystem` facades; game modules use those facades rather than
 depending on implementation crates.
 
@@ -43,7 +43,7 @@ unaccelerated relative mouse motion, and high-polling-rate mice. Registration is
 an application-level choice on Windows; a library should not silently take
 ownership of the process's raw-input registration. The initial game runtime
 therefore uses ordinary focused-window messages and keeps the native input API
-replaceable behind `nord_app`.
+replaceable behind `nordtech`.
 
 ## References
 
