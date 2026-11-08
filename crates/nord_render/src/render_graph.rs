@@ -1281,7 +1281,7 @@ impl<E> RenderQueue<E> {
     /// Returns graph compilation, pass encoder, or repeated-submission errors.
     pub fn encode_parallel(
         &mut self,
-        jobs: &nord_jobs::JobSystem,
+        jobs: &rayon::ThreadPool,
     ) -> Result<(CompiledRenderGraph, Vec<RenderCommandBuffer>), RenderQueueError<E>>
     where
         E: Send,
@@ -1322,7 +1322,8 @@ impl<E> RenderQueue<E> {
                 encode(item);
             }
         } else {
-            jobs.for_each_mut(&mut work, encode);
+            use rayon::prelude::*;
+            jobs.install(|| work.par_iter_mut().for_each(encode));
         }
         let mut encoded = work
             .into_iter()
@@ -1396,12 +1397,8 @@ mod tests {
     };
     use crate::{ClearColor, DescriptorArena, DescriptorKind, GpuResourceHandle, ResourceKind};
     use std::num::NonZeroU32;
-    use std::sync::Arc;
-
-    fn job_system() -> nord_jobs::JobSystem {
-        let pool =
-            nord_threading::ThreadPool::new(nord_threading::ThreadPoolConfig::default()).unwrap();
-        nord_jobs::JobSystem::new(Arc::new(pool))
+    fn job_system() -> rayon::ThreadPool {
+        rayon::ThreadPoolBuilder::new().num_threads(2).build().unwrap()
     }
 
     fn resource(index: u32) -> GpuResourceHandle {

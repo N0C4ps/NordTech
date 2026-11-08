@@ -2,9 +2,9 @@
 
 ## Responsabilidade
 
-`crates/nord_hash` fornece hashes estáveis para conteúdo, arquivos e registros
-estruturados. `nordtech` reexporta uma fachada estável; o jogo e as crates
-consumidoras não precisam conhecer a implementação BLAKE3 diretamente.
+`nord_hash` fornece hashes estáveis para conteúdo, arquivos e registros
+estruturados. A mesma API está disponível em `nordtech::hash`; o programa
+consumidor decide onde hashing participa dos fluxos de assets e cache.
 
 ## Escolhas
 
@@ -25,7 +25,7 @@ consumidoras não precisam conhecer a implementação BLAKE3 diretamente.
 ## Exemplo para uma textura
 
 ```rust
-let digest = nordtech::ApplicationHashBuilder::new("nord.texture.cache.v1")
+let digest = nordtech::hash::HashBuilder::new("nord.texture.cache.v1")
     .field_u32("width", width)
     .field_u32("height", height)
     .field_str("format", format_name)
@@ -35,7 +35,7 @@ let digest = nordtech::ApplicationHashBuilder::new("nord.texture.cache.v1")
 
 Inclua todas as opções que afetem o resultado (por exemplo, versão do decoder,
 compressor e mipmap settings) no domínio ou nos campos. Para deduplicar somente
-os bytes originais do arquivo, use `application_hash_file`.
+os bytes originais do arquivo, use `nordtech::hash::hash_file`.
 
 ## O que não usar como content ID
 

@@ -34,13 +34,12 @@ Ele fornece FPS e tempo médio de frame, sem escrever um log a cada iteração.
 Percentis de frame time e histogramas podem ser adicionados à telemetria quando
 houver uma camada de profiling definida.
 
-## Uso no jogo
+## Composição pelo consumidor
 
-`src/gameloop/` obtém `ApplicationFrameTime` em cada iteração e entrega o delta
-de jogo ao acumulador de passo fixo. Guarda também passos de simulação
-agendados, backlog descartado e a última amostra de FPS; o evento único de
-encerramento inclui essas métricas. As APIs públicas chegam ao jogo por
-`nordtech`.
+`nord_time` is available through `nordtech::time` and does not drive a game
+loop or send deltas to another crate. A consuming program decides when to tick
+the clock and whether to pass the resulting duration to a fixed-step
+accumulator, simulation, or renderer.
 
 ```rust
 let frame = clock.tick();

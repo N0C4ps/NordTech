@@ -2,10 +2,9 @@
 
 ## Ownership and API boundary
 
-`crates/nord_log` implements the process-wide logging pipeline. `crates/nordtech`
-owns its application facade and installs it during composition. Game modules
-emit events through the macros re-exported from `nordtech`; they do not depend
-directly on `nord_log` or its implementation crates. Engine libraries may use
+`nord_log` implements the process-wide logging pipeline and is available via
+`nordtech::log`. The consuming program decides whether to install a logger.
+Engine libraries may use
 the standard `tracing` or `log` facades; the Nord subscriber also bridges
 `log` records into the same pipeline.
 
@@ -30,7 +29,7 @@ data.
 
 ## Configuration and outputs
 
-`ApplicationLoggerConfig` supports readable terminal output and an optional
+`LoggerConfig` supports readable terminal output and an optional
 JSON Lines file sink. The file sink can rotate daily, hourly, weekly, or never,
 with a configurable retention count. The filter can be set explicitly or read
 from `NORD_LOG`, then `RUST_LOG`, with `info` as the default. The queue capacity
@@ -52,9 +51,9 @@ export runs on SDK-managed background work. The `tracing` spans are converted
 to OpenTelemetry spans and log records carry their trace/span identifiers.
 When setting a protocol environment variable, use `http/protobuf`; unsupported
 protocols produce a startup error instead of silently sending to the wrong
-transport. `ApplicationLogger::flush` waits for the local sinks and both OTLP
+transport. `LoggerRuntime::flush` waits for the local sinks and both OTLP
 batches, with a two-second exporter timeout. Configure it directly with
-`ApplicationOpenTelemetryConfig::otlp_http` if preferred.
+`OpenTelemetryConfig::otlp_http` if preferred.
 
 ### Local Collector check
 
@@ -91,18 +90,19 @@ failures. `Block` is available
 when loss is unacceptable, but it can stall producer threads during a sink
 outage. The game checks and reports logger diagnostics after its loop.
 
-The worker flushes sinks periodically and `ApplicationLogger::flush` supports
-an explicit timeout. The application container keeps `ApplicationLogger` alive
-for the process lifetime. Dropping the runtime shuts down the OTLP batch
+The worker flushes sinks periodically and `LoggerRuntime::flush` supports an
+explicit timeout. The consuming program keeps the runtime alive for as long as
+it wants logging. Dropping the runtime shuts down the OTLP batch
 processor, drains queued events, flushes the sinks, and joins the worker.
 
 ## Structured context
 
 Each record includes timestamp, severity text and OpenTelemetry-compatible
 severity number, event name, target/instrumentation scope, event fields, source
-location, thread identity, and current span stack. The application creates a
-root span with game name/version, process ID, and active platform. Use spans to
-attach stable context to operations, and use `#[nordtech::instrument]` or
+location, thread identity, and current span stack. A consuming program can
+create a root span with its application identity, process ID, and active
+platform. Use spans to
+attach stable context to operations, and use `#[nordtech::log::instrument]` or
 `Instrument` when work moves to another task/thread; thread-local span context
 does not cross arbitrary thread boundaries automatically.
 When an event supplies a string field named `event_name`, the logger promotes

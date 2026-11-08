@@ -1,11 +1,13 @@
 //! Stable application facade for typed window/lifecycle event dispatch.
 
-use nord_events::{DispatchReport, EventSubscription, EventSystem, EventSystemError};
+use nordtech::events::{DispatchReport, EventSubscription, EventSystem, EventSystemError};
 
-pub use nord_events::{ApplicationEvent, ApplicationLifecycleEvent, WindowEvent, WindowHandle};
+pub use nordtech::events::{ApplicationEvent, ApplicationLifecycleEvent, WindowEvent};
 pub type ApplicationDispatchReport = DispatchReport;
 pub type ApplicationWindowEvent = WindowEvent;
-pub type ApplicationWindowHandle = WindowHandle;
+/// Native platform window identity. `nordtech::events::WindowHandle` remains a
+/// separate event-system identity; consumers map between them explicitly.
+pub type ApplicationWindowHandle = nordtech::platform::WindowHandle;
 pub type ApplicationEventSubscription = EventSubscription<ApplicationEvent>;
 
 /// Application-owned event dispatcher for window and lifecycle events.

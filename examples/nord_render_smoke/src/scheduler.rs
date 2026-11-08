@@ -1,6 +1,6 @@
 //! Stable application facade for queued, prioritized CPU tasks.
 
-pub use nord_scheduler::{
+pub use nordtech::scheduler::{
     CancellationToken as ApplicationCancellationToken,
     SchedulerBuildError as ApplicationSchedulerBuildError,
     SchedulerConfig as ApplicationSchedulerConfig,

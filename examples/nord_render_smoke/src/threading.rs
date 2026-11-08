@@ -1,6 +1,6 @@
 //! Stable application facade for engine worker pools.
 
-pub use nord_threading::{
+pub use nordtech::threading::{
     ThreadPool as ApplicationThreadPool, ThreadPoolBuildError as ApplicationThreadPoolBuildError,
     ThreadPoolConfig as ApplicationThreadPoolConfig,
 };

@@ -4,6 +4,20 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WindowHandle(u64);
 
+impl WindowHandle {
+    /// Create an event-system identity from an application-owned numeric ID.
+    #[must_use]
+    pub const fn from_raw(value: u64) -> Self {
+        Self(value)
+    }
+
+    /// Return the underlying numeric ID.
+    #[must_use]
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
 /// Monotonic allocator for opaque native window identities.
 pub struct WindowIdAllocator {
     next: AtomicU64,

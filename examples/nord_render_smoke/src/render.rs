@@ -1,4 +1,4 @@
-use crate::{ApplicationJobSystem, ApplicationPlatform, ApplicationWindowHandle};
+use crate::{ApplicationPlatform, ApplicationWindowHandle};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::time::Instant;
@@ -7,13 +7,13 @@ fn elapsed_benchmark_ns(start: Option<Instant>) -> u64 {
     start.map_or(0, |start| u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX))
 }
 
-pub use nord_render::{
+pub use nordtech::render::{
     ClearColor as ApplicationClearColor, GpuFrameTiming as ApplicationGpuFrameTiming,
     GpuMemoryBudget as ApplicationGpuMemoryBudget, GpuMemorySegment as ApplicationGpuMemorySegment,
     GpuPassTiming as ApplicationGpuPassTiming, RenderBackend as ApplicationRenderBackend,
 };
 
-pub use nord_render::{
+pub use nordtech::render::{
     ColorAttachmentBinding as ApplicationColorAttachmentBinding,
     CompiledRenderGraph as ApplicationCompiledRenderGraph, DrawCall as ApplicationDrawCall,
     GraphResourceRef as ApplicationGraphResourceRef,
@@ -30,7 +30,7 @@ pub use nord_render::{
 
 /// Backend-neutral GPU resource, descriptor, shader and pipeline APIs managed
 /// through the application-owned renderer facade.
-pub use nord_render::{
+pub use nordtech::render::{
     Allocation as ApplicationGpuAllocation, AllocationClass as ApplicationGpuAllocationClass,
     BlendMode as ApplicationBlendMode, BufferDesc as ApplicationBufferDesc,
     BufferMemory as ApplicationBufferMemory, BufferUsage as ApplicationBufferUsage,
@@ -66,11 +66,11 @@ pub use nord_render::{
 };
 
 /// Stable game-facing configuration for Nord's renderer infrastructure.
-pub use nord_render::RenderConfig as ApplicationRenderConfig;
+pub use nordtech::render::RenderConfig as ApplicationRenderConfig;
 
 /// Failure reported by the application renderer facade.
 #[derive(Debug)]
-pub struct ApplicationRenderError(nord_render::RenderError);
+pub struct ApplicationRenderError(nordtech::render::RenderError);
 
 impl Display for ApplicationRenderError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
@@ -86,13 +86,13 @@ impl Error for ApplicationRenderError {
 
 impl From<ApplicationRenderCommandEncodingError> for ApplicationRenderError {
     fn from(error: ApplicationRenderCommandEncodingError) -> Self {
-        Self(nord_render::RenderError::Backend(error.to_string()))
+        Self(nordtech::render::RenderError::Backend(error.to_string()))
     }
 }
 
 /// App-owned renderer facade; native handles and backend objects stay out of game code.
 pub struct ApplicationRenderer {
-    inner: nord_render::Renderer,
+    inner: nordtech::render::Renderer,
     benchmark_timing_enabled: bool,
     last_queue_timing: ApplicationRenderQueueTiming,
 }
@@ -110,9 +110,9 @@ pub struct ApplicationRenderQueueTiming {
 
 /// Game-facing render queue. Pass callbacks use the application facade and
 /// cannot access native D3D12 objects.
-pub type ApplicationRenderQueue = nord_render::RenderQueue<ApplicationRenderError>;
+pub type ApplicationRenderQueue = nordtech::render::RenderQueue<ApplicationRenderError>;
 
-pub type ApplicationRenderQueueError = nord_render::RenderQueueError<ApplicationRenderError>;
+pub type ApplicationRenderQueueError = nordtech::render::RenderQueueError<ApplicationRenderError>;
 
 impl ApplicationRenderer {
     /// Bind Nord's renderer to a window created by the application platform.
@@ -126,9 +126,9 @@ impl ApplicationRenderer {
         config: ApplicationRenderConfig,
     ) -> Result<Self, ApplicationRenderError> {
         let native_window = platform.native_window_handle(window).map_err(|error| {
-            ApplicationRenderError(nord_render::RenderError::Backend(error.to_string()))
+            ApplicationRenderError(nordtech::render::RenderError::Backend(error.to_string()))
         })?;
-        nord_render::Renderer::new(native_window, config)
+        nordtech::render::Renderer::new(native_window, config)
             .map(|inner| Self {
                 inner,
                 benchmark_timing_enabled: std::env::var_os("NORD_RENDER_BENCHMARK").is_some(),
@@ -526,10 +526,9 @@ impl ApplicationRenderer {
     pub fn submit_render_queue(
         &mut self,
         queue: &mut ApplicationRenderQueue,
-        jobs: &ApplicationJobSystem,
     ) -> Result<ApplicationCompiledRenderGraph, ApplicationRenderQueueError> {
         let stage_start = self.benchmark_timing_enabled.then(Instant::now);
-        let (compiled, buffers) = queue.encode_parallel(jobs)?;
+        let (compiled, buffers) = queue.encode_parallel(self.inner.worker_pool())?;
         let encode_ns = elapsed_benchmark_ns(stage_start);
         let stage_start = self.benchmark_timing_enabled.then(Instant::now);
         let resources = self.inner.create_transient_resources(&compiled).map_err(|error| {
@@ -544,23 +543,8 @@ impl ApplicationRenderer {
         }
         let transients_ns = elapsed_benchmark_ns(stage_start);
         let stage_start = self.benchmark_timing_enabled.then(Instant::now);
-        let mut recorded =
-            match self.inner.record_graph_barriers_parallel(&compiled, &resources, jobs) {
-                Ok(recorded) => recorded,
-                Err(error) => {
-                    let _ = self.inner.destroy_transient_resources(resources);
-                    return Err(ApplicationRenderQueueError::TransientResources(
-                        ApplicationRenderError(error),
-                    ));
-                }
-            };
-        let barriers_ns = elapsed_benchmark_ns(stage_start);
-        let stage_start = self.benchmark_timing_enabled.then(Instant::now);
-        let mut commands = match self
-            .inner
-            .record_graph_commands_parallel(&compiled, &resources, &buffers, jobs)
-        {
-            Ok(commands) => commands,
+        let mut recorded = match self.inner.record_graph_barriers_parallel(&compiled, &resources) {
+            Ok(recorded) => recorded,
             Err(error) => {
                 let _ = self.inner.destroy_transient_resources(resources);
                 return Err(ApplicationRenderQueueError::TransientResources(
@@ -568,6 +552,18 @@ impl ApplicationRenderer {
                 ));
             }
         };
+        let barriers_ns = elapsed_benchmark_ns(stage_start);
+        let stage_start = self.benchmark_timing_enabled.then(Instant::now);
+        let mut commands =
+            match self.inner.record_graph_commands_parallel(&compiled, &resources, &buffers) {
+                Ok(commands) => commands,
+                Err(error) => {
+                    let _ = self.inner.destroy_transient_resources(resources);
+                    return Err(ApplicationRenderQueueError::TransientResources(
+                        ApplicationRenderError(error),
+                    ));
+                }
+            };
         let commands_ns = elapsed_benchmark_ns(stage_start);
         let stage_start = self.benchmark_timing_enabled.then(Instant::now);
         if let Err(error) = self.inner.begin_graph_submission(&compiled) {

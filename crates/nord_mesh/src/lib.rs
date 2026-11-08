@@ -3,7 +3,6 @@
 //! Meshes own CPU-side vertices, indices and bounds only. GPU buffers,
 //! materials and draw scheduling belong to renderer implementations.
 
-use nord_math::{Aabb3, GeometryError, Vec3};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
@@ -11,8 +10,8 @@ use std::fmt::{Display, Formatter};
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MeshVertex {
-    position: Vec3,
-    normal: Vec3,
+    position: [f32; 3],
+    normal: [f32; 3],
 }
 
 impl MeshVertex {
@@ -20,23 +19,27 @@ impl MeshVertex {
     ///
     /// # Errors
     /// Returns [`MeshError`] for non-finite data or a zero-length normal.
-    pub fn new(position: Vec3, normal: Vec3) -> Result<Self, MeshError> {
-        if !position.is_finite() || !normal.is_finite() {
+    pub fn new(position: [f32; 3], normal: [f32; 3]) -> Result<Self, MeshError> {
+        if !position.iter().chain(normal.iter()).all(|component| component.is_finite()) {
             return Err(MeshError::NonFiniteVertex);
         }
-        let normal = normal.try_normalize().ok_or(MeshError::DegenerateNormal)?;
+        let length = normal.iter().map(|component| component * component).sum::<f32>().sqrt();
+        if !length.is_finite() || length <= f32::EPSILON {
+            return Err(MeshError::DegenerateNormal);
+        }
+        let normal = normal.map(|component| component / length);
         Ok(Self { position, normal })
     }
 
     /// Local-space position.
     #[must_use]
-    pub const fn position(self) -> Vec3 {
+    pub const fn position(self) -> [f32; 3] {
         self.position
     }
 
     /// Unit local-space normal.
     #[must_use]
-    pub const fn normal(self) -> Vec3 {
+    pub const fn normal(self) -> [f32; 3] {
         self.normal
     }
 }
@@ -46,7 +49,7 @@ impl MeshVertex {
 pub struct IndexedMesh {
     vertices: Vec<MeshVertex>,
     indices: Vec<u32>,
-    bounds: Aabb3,
+    bounds: MeshBounds,
 }
 
 impl IndexedMesh {
@@ -69,13 +72,15 @@ impl IndexedMesh {
         if indices.iter().any(|&index| index >= vertex_count) {
             return Err(MeshError::IndexOutOfRange);
         }
-        let mut minimum = Vec3::splat(f32::INFINITY);
-        let mut maximum = Vec3::splat(f32::NEG_INFINITY);
+        let mut minimum = [f32::INFINITY; 3];
+        let mut maximum = [f32::NEG_INFINITY; 3];
         for vertex in &vertices {
-            minimum = minimum.min(vertex.position);
-            maximum = maximum.max(vertex.position);
+            for axis in 0..3 {
+                minimum[axis] = minimum[axis].min(vertex.position[axis]);
+                maximum[axis] = maximum[axis].max(vertex.position[axis]);
+            }
         }
-        let bounds = Aabb3::new(minimum, maximum).map_err(MeshError::InvalidBounds)?;
+        let bounds = MeshBounds { min: minimum, max: maximum };
         Ok(Self { vertices, indices, bounds })
     }
 
@@ -93,8 +98,29 @@ impl IndexedMesh {
 
     /// Axis-aligned local-space bounds derived from all vertices.
     #[must_use]
-    pub const fn bounds(&self) -> Aabb3 {
+    pub const fn bounds(&self) -> MeshBounds {
         self.bounds
+    }
+}
+
+/// Axis-aligned bounds in the mesh's local space.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MeshBounds {
+    min: [f32; 3],
+    max: [f32; 3],
+}
+
+impl MeshBounds {
+    /// Minimum corner.
+    #[must_use]
+    pub const fn min(self) -> [f32; 3] {
+        self.min
+    }
+
+    /// Maximum corner.
+    #[must_use]
+    pub const fn max(self) -> [f32; 3] {
+        self.max
     }
 }
 
@@ -109,7 +135,6 @@ pub enum MeshError {
     TooManyVertices,
     NonFiniteVertex,
     DegenerateNormal,
-    InvalidBounds(GeometryError),
 }
 
 impl Display for MeshError {
@@ -123,24 +148,34 @@ impl Error for MeshError {}
 #[cfg(test)]
 mod tests {
     use super::{IndexedMesh, MeshError, MeshVertex};
-    use nord_math::Vec3;
-
     #[test]
     fn validates_indexed_triangle_mesh_and_derives_bounds() {
         let vertices = vec![
-            MeshVertex::new(Vec3::new(-1.0, -2.0, -3.0), Vec3::Y).unwrap(),
-            MeshVertex::new(Vec3::new(1.0, 2.0, 3.0), Vec3::Y).unwrap(),
-            MeshVertex::new(Vec3::ZERO, Vec3::Y).unwrap(),
+            MeshVertex::new([-1.0, -2.0, -3.0], [0.0, 1.0, 0.0]).unwrap(),
+            MeshVertex::new([1.0, 2.0, 3.0], [0.0, 1.0, 0.0]).unwrap(),
+            MeshVertex::new([0.0; 3], [0.0, 1.0, 0.0]).unwrap(),
         ];
         let mesh = IndexedMesh::new(vertices, vec![0, 1, 2]).unwrap();
         assert_eq!(mesh.indices(), &[0, 1, 2]);
-        assert_eq!(mesh.bounds().min(), Vec3::new(-1.0, -2.0, -3.0));
-        assert_eq!(mesh.bounds().max(), Vec3::new(1.0, 2.0, 3.0));
+        assert!(
+            mesh.bounds()
+                .min()
+                .iter()
+                .zip([-1.0, -2.0, -3.0])
+                .all(|(actual, expected)| { (actual - expected).abs() < f32::EPSILON })
+        );
+        assert!(
+            mesh.bounds()
+                .max()
+                .iter()
+                .zip([1.0, 2.0, 3.0])
+                .all(|(actual, expected)| { (actual - expected).abs() < f32::EPSILON })
+        );
     }
 
     #[test]
     fn rejects_malformed_triangle_indices_and_normals() {
-        let vertex = MeshVertex::new(Vec3::ZERO, Vec3::Y).unwrap();
+        let vertex = MeshVertex::new([0.0; 3], [0.0, 1.0, 0.0]).unwrap();
         assert_eq!(
             IndexedMesh::new(vec![vertex; 3], vec![0, 1]),
             Err(MeshError::IndexCountNotTriangleList)
@@ -149,6 +184,6 @@ mod tests {
             IndexedMesh::new(vec![vertex; 3], vec![0, 1, 3]),
             Err(MeshError::IndexOutOfRange)
         );
-        assert_eq!(MeshVertex::new(Vec3::ZERO, Vec3::ZERO), Err(MeshError::DegenerateNormal));
+        assert_eq!(MeshVertex::new([0.0; 3], [0.0; 3]), Err(MeshError::DegenerateNormal));
     }
 }

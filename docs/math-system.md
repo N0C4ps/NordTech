@@ -2,11 +2,10 @@
 
 ## Ownership and boundaries
 
-`nord_math` owns game-independent numeric, geometric, and spatial primitives.
-Engine crates that need the primitives may depend on it; the root game package
-uses the stable `nordtech` facade (`ApplicationVec3`, `ApplicationMat4`,
-`ApplicationAabb3`, and related names). The game does not import implementation
-crate names.
+`nord_math` owns game-independent numeric, geometric, and spatial primitives,
+available at `nordtech::math`. It has no dependency on the camera or mesh
+crates. Those crates use their own simple array-based coordinate contracts;
+the consuming program converts values between them explicitly.
 
 The crate is divided by responsibility:
 

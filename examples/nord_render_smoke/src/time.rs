@@ -1,6 +1,6 @@
 //! Stable application-facing facade over Nord's clocks and timing utilities.
 
-pub use nord_time::{
+pub use nordtech::time::{
     ClockConfig as ApplicationClockConfig, FixedStepAccumulator as ApplicationFixedStepAccumulator,
     FixedStepConfig as ApplicationFixedStepConfig,
     FixedStepConfigError as ApplicationFixedStepConfigError,

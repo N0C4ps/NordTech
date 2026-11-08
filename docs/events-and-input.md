@@ -1,49 +1,51 @@
 # Events and input
 
-## Ownership
+## Independent capabilities
 
-`nord_events` owns the normalized application/window event contracts and a
-typed listener dispatcher. `nord_inputs` owns normalized keyboard/pointer
-events, held-state tracking, and input subscriptions. `nord_platform` is the
-native producer: its backend translates operating-system messages into those
-contracts and places them in the existing bounded, timestamped platform event
-queue. `nordtech` exposes the stable `ApplicationEventSystem` and
-`ApplicationInputSystem` facades; game modules use those facades rather than
-depending on implementation crates.
+`nord_events` defines a typed event dispatcher and its own event/window
+identities. `nord_inputs` defines normalized keyboard and pointer events, held
+state, and a separate input-window identity. `nord_platform` defines native
+window and input notifications in its platform event queue. None of these
+crates depends on the others or forwards events into another crate.
 
-## Dispatch and lifecycle
+The consumer chooses which notifications matter and translates them. Window
+IDs are distinct types on purpose; map them explicitly at the application
+boundary:
 
-The application runtime pumps native messages on the window-owning thread,
-drains the platform queue in sequence order, then sends window/lifecycle events
-to `ApplicationEventSystem` and keyboard/pointer events to
-`ApplicationInputSystem`. Typed subscriptions run in registration order from a
-stable snapshot. Dispatch releases internal locks before invoking callbacks,
-and subscription tokens unregister listeners on drop. Listener panics are
-counted and reported to the runtime when the active build uses panic unwinding.
-The optimized game profiles use `panic = "abort"`; there, a listener panic
-terminates the process and is handled by crash diagnostics rather than resumed
-dispatch.
+```rust
+let platform_window = platform.create_window(&config)?;
+let input_window = nordtech::inputs::WindowHandle::new(platform_window.value());
+let event_window = nordtech::events::WindowHandle::from_raw(platform_window.value());
+```
 
-The native queue is bounded at 4096 entries and event sequence/timestamps are
-assigned when producers enqueue. Native callbacks only translate small
-messages; they do not invoke gameplay callbacks. On focus loss, the input
-system clears held state and sends synthetic releases so a key or button does
-not remain stuck after the application becomes inactive.
+The program can then turn a `nordtech::platform::PlatformEventKind::Input`
+value into an `nordtech::inputs::InputEvent`, update the input system, and
+dispatch a separate application event if its own policy requires that.
 
-## Current input behavior
+## Dispatcher behavior
 
-The Windows backend currently normalizes focused-window key down/up, repeat,
-modifier, pointer movement, primary/secondary/middle/auxiliary buttons, and
-vertical/horizontal wheel messages. Key and pointer events carry their source
-window. Wheel deltas are expressed in standard detents. Input state is tracked
-per window and can be queried without subscribing to every frame's events.
+Both dispatchers expose subscription tokens that unregister on drop. Callbacks
+run without holding the subscriber lock. Listener panics are counted when the
+build uses unwinding; a build configured with `panic = "abort"` terminates on a
+panic.
 
-Raw Input is not registered yet. It is the extension point for device identity,
-unaccelerated relative mouse motion, and high-polling-rate mice. Registration is
-an application-level choice on Windows; a library should not silently take
-ownership of the process's raw-input registration. The initial game runtime
-therefore uses ordinary focused-window messages and keeps the native input API
-replaceable behind `nordtech`.
+`InputSystem` tracks keys, pointer buttons, and pointer position per input
+window. On focus loss, the consumer can call `release_window` to clear held
+state and emit synthetic releases. Platform polling and the decision to
+interpret focus or input notifications remain application policy.
+
+## Native behavior
+
+The Windows platform backend currently normalizes focused-window key down/up,
+repeat, modifiers, pointer movement, buttons, wheel messages, focus, resize,
+and DPI changes. Its event queue is bounded at 4096 entries and assigns a
+sequence and monotonic timestamp as each event is enqueued. Queue saturation
+returns an explicit error. Linux and macOS window backends still need native
+implementations.
+
+Raw Input is not registered yet. Device identity, unaccelerated relative mouse
+motion, and high-polling-rate support should be enabled by the consuming
+program when it owns that process-level choice.
 
 ## References
 

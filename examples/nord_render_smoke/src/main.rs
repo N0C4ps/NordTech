@@ -1,23 +1,21 @@
-use nordtech::{
+use nord_render_smoke::{
     ApplicationBufferDesc, ApplicationBufferMemory, ApplicationBufferUsage,
     ApplicationColorAttachmentBinding, ApplicationComputePipelineDesc, ApplicationCullMode,
     ApplicationDrawCall, ApplicationFrontFace, ApplicationGraphicsPipelineDesc,
-    ApplicationIndexBufferBinding, ApplicationIndexFormat, ApplicationJobSystem,
-    ApplicationPipelineDescriptorBinding, ApplicationPipelineDescriptorTableBinding,
-    ApplicationPlatform, ApplicationPolygonFillMode, ApplicationPrimitiveTopology,
-    ApplicationRenderBarrierKind, ApplicationRenderConfig, ApplicationRenderPassDesc,
-    ApplicationRenderQueue, ApplicationRenderTargetDesc, ApplicationRenderer,
-    ApplicationResourceUsage, ApplicationSamplerDesc, ApplicationScissorRect,
+    ApplicationIndexBufferBinding, ApplicationIndexFormat, ApplicationPipelineDescriptorBinding,
+    ApplicationPipelineDescriptorTableBinding, ApplicationPlatform, ApplicationPolygonFillMode,
+    ApplicationPrimitiveTopology, ApplicationRenderBarrierKind, ApplicationRenderConfig,
+    ApplicationRenderPassDesc, ApplicationRenderQueue, ApplicationRenderTargetDesc,
+    ApplicationRenderer, ApplicationResourceUsage, ApplicationSamplerDesc, ApplicationScissorRect,
     ApplicationShaderBindingKind, ApplicationShaderCompileOptions, ApplicationShaderCompiler,
     ApplicationShaderResourceBinding, ApplicationShaderStage, ApplicationTextureDesc,
-    ApplicationTextureFormat, ApplicationTextureUsage, ApplicationThreadPool,
-    ApplicationThreadPoolConfig, ApplicationVertexAttribute, ApplicationVertexBufferBinding,
-    ApplicationVertexFormat, ApplicationViewport, ApplicationWindowConfig,
+    ApplicationTextureFormat, ApplicationTextureUsage, ApplicationVertexAttribute,
+    ApplicationVertexBufferBinding, ApplicationVertexFormat, ApplicationViewport,
+    ApplicationWindowConfig,
 };
 use std::error::Error;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let platform = ApplicationPlatform::initialize("nord-render-smoke")?;
@@ -37,10 +35,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[allow(clippy::too_many_lines)]
 fn validate_resources(
     platform: &ApplicationPlatform,
-    window: nordtech::ApplicationWindowHandle,
+    window: nord_render_smoke::ApplicationWindowHandle,
 ) -> Result<(), Box<dyn Error>> {
-    let pool = Arc::new(ApplicationThreadPool::new(ApplicationThreadPoolConfig::default())?);
-    let jobs = ApplicationJobSystem::new(pool);
     let mut renderer =
         ApplicationRenderer::initialize(platform, window, ApplicationRenderConfig::new(128, 128))?;
     println!("PASS: D3D12 device, swapchain, and frame submission");
@@ -58,9 +54,10 @@ fn validate_resources(
     );
     println!("PASS: D3D12 minimize, same-size restore, and repeated resize lifecycle");
 
-    let local_budget = renderer.memory_budget(nordtech::ApplicationGpuMemorySegment::Local)?;
+    let local_budget =
+        renderer.memory_budget(nord_render_smoke::ApplicationGpuMemorySegment::Local)?;
     let non_local_budget =
-        renderer.memory_budget(nordtech::ApplicationGpuMemorySegment::NonLocal)?;
+        renderer.memory_budget(nord_render_smoke::ApplicationGpuMemorySegment::NonLocal)?;
     println!("PASS: DXGI local-memory budget query ({local_budget:?})");
     println!("PASS: DXGI non-local-memory budget query ({non_local_budget:?})");
 
@@ -111,7 +108,7 @@ fn validate_resources(
     let white_tint = [1.0_f32; 4].map(f32::to_le_bytes).concat();
     renderer.write_buffer(constant_buffer, 0, &white_tint)?;
     let constant_view = renderer.create_constant_buffer_view(constant_buffer)?;
-    assert_eq!(constant_view.kind(), nordtech::ApplicationDescriptorKind::Resource);
+    assert_eq!(constant_view.kind(), nord_render_smoke::ApplicationDescriptorKind::Resource);
     println!("PASS: upload buffer write and CBV creation");
     let constant_view_array =
         renderer.create_constant_buffer_view_array(&[constant_buffer, constant_buffer])?;
@@ -151,7 +148,7 @@ fn validate_resources(
     renderer.upload_texture(sampled_texture, 1, 0, 8, &[0x55; 16])?;
     renderer.upload_texture(sampled_texture, 2, 0, 4, &[0x33; 4])?;
     let texture_view = renderer.create_texture_srv(sampled_texture)?;
-    assert_eq!(texture_view.kind(), nordtech::ApplicationDescriptorKind::Resource);
+    assert_eq!(texture_view.kind(), nord_render_smoke::ApplicationDescriptorKind::Resource);
     println!("PASS: texture creation, subresource upload, and SRV creation");
 
     let array_texture = renderer.create_texture(
@@ -166,7 +163,7 @@ fn validate_resources(
     renderer.upload_texture(array_texture, 0, 0, 8, &[0x21; 16])?;
     renderer.upload_texture(array_texture, 0, 1, 8, &[0x42; 16])?;
     let array_view = renderer.create_texture_srv(array_texture)?;
-    assert_eq!(array_view.kind(), nordtech::ApplicationDescriptorKind::Resource);
+    assert_eq!(array_view.kind(), nord_render_smoke::ApplicationDescriptorKind::Resource);
     println!("PASS: array texture layer uploads and array SRV creation");
     let sampled_texture_table =
         renderer.create_texture_srv_array(&[sampled_texture, array_texture])?;
@@ -177,7 +174,7 @@ fn validate_resources(
     let storage_buffer = renderer
         .create_buffer(ApplicationBufferDesc::new(256, ApplicationBufferUsage::STORAGE)?)?;
     let storage_buffer_view = renderer.create_unordered_access_view(storage_buffer)?;
-    assert_eq!(storage_buffer_view.kind(), nordtech::ApplicationDescriptorKind::Resource);
+    assert_eq!(storage_buffer_view.kind(), nord_render_smoke::ApplicationDescriptorKind::Resource);
     let storage_texture = renderer.create_texture(ApplicationTextureDesc::new(
         4,
         4,
@@ -191,7 +188,7 @@ fn validate_resources(
         ApplicationTextureUsage::STORAGE,
     )?)?;
     let storage_texture_view = renderer.create_unordered_access_view(storage_texture)?;
-    assert_eq!(storage_texture_view.kind(), nordtech::ApplicationDescriptorKind::Resource);
+    assert_eq!(storage_texture_view.kind(), nord_render_smoke::ApplicationDescriptorKind::Resource);
     println!("PASS: storage buffer/texture allocations and UAV creation");
     let storage_buffer_views =
         renderer.create_unordered_access_view_array(&[storage_buffer, storage_buffer])?;
@@ -221,8 +218,14 @@ fn validate_resources(
         .color
         .expect("requested auxiliary color attachment");
     let auxiliary_target_view = renderer.create_render_target_view(auxiliary_target)?;
-    assert_eq!(render_target_view.kind(), nordtech::ApplicationDescriptorKind::RenderTarget);
-    assert_eq!(depth_stencil_view.kind(), nordtech::ApplicationDescriptorKind::DepthStencil);
+    assert_eq!(
+        render_target_view.kind(),
+        nord_render_smoke::ApplicationDescriptorKind::RenderTarget
+    );
+    assert_eq!(
+        depth_stencil_view.kind(),
+        nord_render_smoke::ApplicationDescriptorKind::DepthStencil
+    );
     println!("PASS: color/depth render-target allocation and RTV/DSV creation");
 
     let sampler = renderer.create_sampler(ApplicationSamplerDesc::linear_repeat())?;
@@ -442,7 +445,7 @@ fn validate_resources(
         },
     )?;
     assert!(
-        renderer.submit_render_queue(&mut invalid_graph, &jobs).is_err(),
+        renderer.submit_render_queue(&mut invalid_graph).is_err(),
         "a pass must declare every GPU resource referenced by shader descriptors"
     );
     println!("PASS: graph rejects undeclared shader descriptor resources before submission");
@@ -472,14 +475,16 @@ fn validate_resources(
                         ApplicationColorAttachmentBinding {
                             resource: color_target,
                             view: render_target_view,
-                            clear_color: nordtech::ApplicationClearColor::rgba(
+                            clear_color: nord_render_smoke::ApplicationClearColor::rgba(
                                 0.01, 0.02, 0.03, 1.0,
                             ),
                         },
                         ApplicationColorAttachmentBinding {
                             resource: auxiliary_target,
                             view: auxiliary_target_view,
-                            clear_color: nordtech::ApplicationClearColor::rgba(0.0, 0.0, 0.0, 1.0),
+                            clear_color: nord_render_smoke::ApplicationClearColor::rgba(
+                                0.0, 0.0, 0.0, 1.0,
+                            ),
                         },
                     ],
                     Some((depth_target, depth_stencil_view)),
@@ -684,7 +689,7 @@ fn validate_resources(
         },
     )?;
     let graph = renderer
-        .submit_render_queue(&mut queue, &jobs)
+        .submit_render_queue(&mut queue)
         .map_err(|error| format!("submitting render queue: {error:?}"))?;
     let left_pixel = renderer.read_texture_pixel(color_target, 12, 16)?;
     let right_pixel = renderer.read_texture_pixel(color_target, 24, 16)?;
@@ -745,8 +750,9 @@ fn validate_resources(
     let stats = renderer.gpu_allocator_stats();
     assert!(stats.allocation_count >= 8, "expected resource allocations to be tracked: {stats:?}");
     assert!(stats.live_bytes > 0, "live GPU allocations were not accounted: {stats:?}");
-    let active_budget = renderer.memory_budget(nordtech::ApplicationGpuMemorySegment::Local)?;
-    renderer.render_frame(nordtech::ApplicationClearColor::rgba(0.1, 0.2, 0.3, 1.0))?;
+    let active_budget =
+        renderer.memory_budget(nord_render_smoke::ApplicationGpuMemorySegment::Local)?;
+    renderer.render_frame(nord_render_smoke::ApplicationClearColor::rgba(0.1, 0.2, 0.3, 1.0))?;
     renderer.wait_idle()?;
     println!("PASS: allocator accounting and frame execution ({stats:?}, {active_budget:?})");
 
@@ -791,7 +797,8 @@ fn validate_resources(
         released >= 64 * 1024 * 1024,
         "trim did not release the excess empty heaps: {released}"
     );
-    let trimmed_budget = renderer.memory_budget(nordtech::ApplicationGpuMemorySegment::Local)?;
+    let trimmed_budget =
+        renderer.memory_budget(nord_render_smoke::ApplicationGpuMemorySegment::Local)?;
     assert!(renderer.trim_pipeline_cache(u64::MAX)? >= 2);
     println!(
         "PASS: descriptor/resource retirement, stale-handle rejection, and pool/cache trim ({released} bytes, {trimmed_budget:?})"
@@ -815,7 +822,7 @@ fn has_binding(
     })
 }
 
-fn assert_contiguous(descriptors: &[nordtech::ApplicationDescriptorHandle]) {
+fn assert_contiguous(descriptors: &[nord_render_smoke::ApplicationDescriptorHandle]) {
     assert!(!descriptors.is_empty());
     assert!(descriptors.windows(2).all(|pair| pair[1].index() == pair[0].index() + 1));
 }

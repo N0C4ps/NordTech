@@ -2739,7 +2739,7 @@ impl D3d12Renderer {
         &self,
         graph: &crate::CompiledRenderGraph,
         transients: &[Option<GpuResourceHandle>],
-        job_system: &nord_jobs::JobSystem,
+        job_system: &rayon::ThreadPool,
     ) -> Result<RecordedGraphBarriers, RenderError> {
         let mut planned_states = HashMap::<usize, D3D12_RESOURCE_STATES>::new();
         let mut jobs = Vec::with_capacity(graph.passes().len());
@@ -2848,7 +2848,8 @@ impl D3d12Renderer {
         let recorded = if jobs.len() <= 4 {
             jobs.into_iter().map(record).collect::<Vec<_>>()
         } else {
-            job_system.map_owned(jobs, record)
+            use rayon::prelude::*;
+            job_system.install(|| jobs.into_par_iter().map(record).collect())
         }
         .into_iter()
         .collect::<Result<Vec<_>, RenderError>>()?;
@@ -2888,7 +2889,7 @@ impl D3d12Renderer {
         graph: &crate::CompiledRenderGraph,
         transients: &[Option<GpuResourceHandle>],
         buffers: &[crate::RenderCommandBuffer],
-        job_system: &nord_jobs::JobSystem,
+        job_system: &rayon::ThreadPool,
     ) -> Result<RecordedGraphCommands, RenderError> {
         for (pass_index, buffer) in buffers.iter().enumerate() {
             let pass = graph
@@ -3004,12 +3005,20 @@ impl D3d12Renderer {
         if jobs.is_empty() {
             return Ok(RecordedGraphCommands { passes: Vec::new() });
         }
-        let recorded = job_system
-            .map_owned(jobs, |(index, renderer, services, commands)| {
-                renderer.record_commands(&commands, services).map(|recorded| (index, recorded))
+        let recorded = {
+            use rayon::prelude::*;
+            job_system.install(|| {
+                jobs.into_par_iter()
+                    .map(|(index, renderer, services, commands)| {
+                        renderer
+                            .record_commands(&commands, services)
+                            .map(|recorded| (index, recorded))
+                    })
+                    .collect::<Vec<_>>()
             })
-            .into_iter()
-            .collect::<Result<Vec<_>, RenderError>>()?;
+        }
+        .into_iter()
+        .collect::<Result<Vec<_>, RenderError>>()?;
         let mut passes = std::iter::repeat_with(Vec::new).take(buffers.len()).collect::<Vec<_>>();
         for (index, command_lists) in recorded {
             passes[index] = command_lists;

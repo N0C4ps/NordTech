@@ -2,11 +2,9 @@
 
 ## Boundary and API
 
-`crates/nord_diagnostics` centralizes application-level error context and
-invariant assertions. `crates/nordtech` owns the public facade exposed to the
-game. Code in `src/` imports `ApplicationResult`, `ApplicationErrorContext`,
-`ensure!`, and invariant macros from `nordtech`; it does not depend directly on
-`nord_diagnostics` or `anyhow`.
+`nord_diagnostics` provides error context and invariant assertions. It is
+available as `nordtech::diagnostics`; the consuming program chooses where to
+use it.
 
 The crate uses `anyhow` for application composition: errors can accumulate
 human-readable operation context while retaining the original source chain.
@@ -17,14 +15,14 @@ part of the API.
 
 ## Recoverable failures
 
-Return `ApplicationResult<T>` for application operations that can fail. Add
+Return `nordtech::diagnostics::Result<T>` for operations that can fail. Add
 context where the caller knows what operation was attempted, then propagate the
 error with `?`:
 
 ```rust
-use nordtech::{ApplicationErrorContext, ApplicationResult};
+use nordtech::diagnostics::{Context, Result};
 
-fn load_game_settings() -> ApplicationResult<GameSettings> {
+fn load_game_settings() -> Result<GameSettings> {
     let settings = read_settings_file()
         .context("reading the game settings file")?;
     parse_game_settings(&settings)

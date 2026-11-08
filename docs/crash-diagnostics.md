@@ -4,8 +4,8 @@
 
 `crates/nord_crash` owns the process panic hook, local panic reports, and the
 optional native minidump monitor. The crate does not depend on `nord_log`.
-`nordtech` exposes it through `ApplicationCrashReporter`, and the game registers
-that service next to `ApplicationLogger` during bootstrap.
+Consumers can access the API as `nordtech::crash::CrashReporter` and choose
+whether to use it. It has no automatic connection to the logger or platform.
 
 The logger provides only a bounded `panic_flush_callback`. The panic hook calls
 it before persisting its report, waiting at most 250 ms for queued local log
@@ -24,8 +24,8 @@ crate does not upload them.
 When enabled, `minidumper-child` starts a separate monitor process. It writes
 native minidumps under `logs/dumps/`, renames them to stable `nord-*.dmp` names,
 and exits when the game process exits. A monitor startup failure is non-fatal:
-panic JSONL reports stay enabled and `ApplicationCrashReporterDiagnostics`
-contains the failure. The app logs one startup warning for that fallback.
+panic JSONL reports stay enabled and `CrashReporterDiagnostics` contains the
+failure. The consuming program decides how to report that fallback.
 
 Release builds retain level-1 debug information and matching PDBs under
 `target/release/`; keep those PDBs with the exact executable build to
@@ -40,9 +40,9 @@ The panic hook does not recover execution. Rust panic hooks run before the
 panic runtime, including `panic = "abort"`, but a hook cannot capture power
 loss, forced termination, hardware failure, or every stack-overflow path.
 
-Panic hooks are process-global and are installed once. The application must
-retain `ApplicationCrashReporter` for its process lifetime. The optional flush
-callback must remain bounded and must not panic.
+Panic hooks are process-global and are installed once. The consuming program
+must retain `CrashReporter` for its process lifetime. A flush callback supplied
+by the consumer must remain bounded and must not panic.
 
 ## References
 

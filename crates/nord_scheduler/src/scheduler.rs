@@ -1,5 +1,6 @@
-use nord_threading::ThreadPool;
+use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::any::Any;
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -10,6 +11,8 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender, TryRecvError
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
+
+thread_local! { static IN_SCHEDULER_TASK: Cell<bool> = const { Cell::new(false) }; }
 
 const QUEUED: u8 = 0;
 const RUNNING: u8 = 1;
@@ -41,6 +44,7 @@ pub struct SchedulerConfig {
     queue_capacity: NonZeroUsize,
     max_in_flight: Option<NonZeroUsize>,
     priority_aging_interval: Duration,
+    worker_threads: NonZeroUsize,
 }
 
 impl SchedulerConfig {
@@ -56,6 +60,13 @@ impl SchedulerConfig {
     #[must_use]
     pub fn with_max_in_flight(mut self, maximum: Option<NonZeroUsize>) -> Self {
         self.max_in_flight = maximum;
+        self
+    }
+
+    /// Set the number of workers owned by this scheduler.
+    #[must_use]
+    pub fn with_worker_threads(mut self, workers: NonZeroUsize) -> Self {
+        self.worker_threads = workers;
         self
     }
 
@@ -83,6 +94,12 @@ impl SchedulerConfig {
     pub const fn priority_aging_interval(&self) -> Duration {
         self.priority_aging_interval
     }
+
+    /// Number of dedicated workers owned by this scheduler.
+    #[must_use]
+    pub const fn worker_threads(&self) -> NonZeroUsize {
+        self.worker_threads
+    }
 }
 
 impl Default for SchedulerConfig {
@@ -91,6 +108,7 @@ impl Default for SchedulerConfig {
             queue_capacity: NonZeroUsize::new(2_048).unwrap_or(NonZeroUsize::MIN),
             max_in_flight: None,
             priority_aging_interval: Duration::from_millis(250),
+            worker_threads: std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN),
         }
     }
 }
@@ -398,20 +416,22 @@ pub struct TaskScheduler {
 }
 
 impl TaskScheduler {
-    /// Create a scheduler over an existing worker pool.
+    /// Create a scheduler with its own worker pool.
     ///
     /// # Errors
     ///
     /// Returns [`SchedulerBuildError`] for invalid limits or if the
     /// dispatcher thread cannot be started.
-    pub fn new(
-        pool: Arc<ThreadPool>,
-        config: SchedulerConfig,
-    ) -> Result<Self, SchedulerBuildError> {
+    pub fn new(config: SchedulerConfig) -> Result<Self, SchedulerBuildError> {
         if config.priority_aging_interval.is_zero() {
             return Err(SchedulerBuildError::ZeroPriorityAgingInterval);
         }
-        let workers = pool.worker_threads().get();
+        let pool = Arc::new(
+            ThreadPoolBuilder::new().num_threads(config.worker_threads.get()).build().map_err(
+                |error| SchedulerBuildError::DispatcherThread(std::io::Error::other(error)),
+            )?,
+        );
+        let workers = config.worker_threads.get();
         let max_in_flight = config.max_in_flight.map_or(workers, NonZeroUsize::get);
         if max_in_flight > workers {
             return Err(SchedulerBuildError::MaxInFlightExceedsWorkers {
@@ -444,7 +464,6 @@ impl TaskScheduler {
         Ok(Self {
             core: Arc::new(SchedulerCore {
                 shared,
-                pool,
                 config,
                 dispatcher: Mutex::new(Some(dispatcher)),
             }),
@@ -581,7 +600,7 @@ impl TaskScheduler {
     /// Returns [`ShutdownError::CalledFromWorker`] when called from a worker,
     /// or [`ShutdownError::DispatcherPanicked`] if the dispatcher panicked.
     pub fn shutdown(&self, mode: ShutdownMode) -> Result<(), ShutdownError> {
-        if self.core.pool.is_current_thread() {
+        if IN_SCHEDULER_TASK.with(Cell::get) {
             return Err(ShutdownError::CalledFromWorker);
         }
         request_shutdown(&self.core.shared, mode);
@@ -611,7 +630,6 @@ impl TaskScheduler {
 
 struct SchedulerCore {
     shared: Arc<SchedulerShared>,
-    pool: Arc<ThreadPool>,
     config: SchedulerConfig,
     dispatcher: Mutex<Option<JoinHandle<()>>>,
 }
@@ -719,7 +737,9 @@ fn dispatch_loop(shared: &Arc<SchedulerShared>, pool: &Arc<ThreadPool>, max_in_f
         {
             let shared_for_task = Arc::clone(shared);
             pool.spawn(move || {
+                let was_in_scheduler = IN_SCHEDULER_TASK.with(|flag| flag.replace(true));
                 run();
+                IN_SCHEDULER_TASK.with(|flag| flag.set(was_in_scheduler));
                 let mut state = lock(&shared_for_task.state);
                 state.in_flight = state.in_flight.saturating_sub(1);
                 shared_for_task.changed.notify_all();
@@ -831,5 +851,52 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
         (*message).to_owned()
     } else {
         "task panicked with a non-string payload".to_owned()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SchedulerConfig, ShutdownError, ShutdownMode, TaskPriority, TaskScheduler};
+    use std::num::NonZeroUsize;
+
+    #[test]
+    fn scheduler_owns_its_pool_and_joins_completed_work() {
+        let config = SchedulerConfig::default().with_worker_threads(NonZeroUsize::new(1).unwrap());
+        let scheduler = TaskScheduler::new(config).unwrap();
+        let result = scheduler
+            .submit(TaskPriority::Normal, |context| {
+                context.checkpoint().unwrap();
+                42
+            })
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert_eq!(result, 42);
+        scheduler.shutdown(ShutdownMode::Drain).unwrap();
+        assert!(matches!(
+            scheduler.submit(TaskPriority::Low, |_| 0),
+            Err(super::SchedulerSubmitError::ShuttingDown)
+        ));
+    }
+
+    #[test]
+    fn scheduler_rejects_shutdown_from_one_of_its_tasks() {
+        let scheduler = TaskScheduler::new(
+            SchedulerConfig::default().with_worker_threads(NonZeroUsize::new(1).unwrap()),
+        )
+        .unwrap();
+        let nested = scheduler.clone();
+        let result = scheduler
+            .submit(TaskPriority::Normal, move |_| {
+                matches!(
+                    nested.shutdown(ShutdownMode::CancelPending),
+                    Err(ShutdownError::CalledFromWorker)
+                )
+            })
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert!(result);
+        scheduler.shutdown(ShutdownMode::Drain).unwrap();
     }
 }

@@ -14,7 +14,7 @@ The crate deliberately provides a composition mechanism, not automatic construct
 4. Resolve dependencies at the composition boundary and pass `Arc<T>` (or narrower references/handles) into constructors.
 
 ```rust
-use nord_dependency::DependencyBuilder;
+use nordtech::dependency::DependencyBuilder;
 use std::sync::Arc;
 
 struct AssetCache;
@@ -29,9 +29,8 @@ let asset_cache = services.get::<AssetCache>()?;
 let audio_backend = services.get::<AudioBackend>()?;
 ```
 
-This example shows the container API only. In the game, keep resolution in `src/app/` and pass the resulting handles to game modules and constructors.
-
-The game composes services in `src/app/dependencies.rs` through the stable application API in `nordtech`. The engine crate `nordtech` wraps `nord_dependency`; the game never imports the DI crate directly. `AppDependencies` exposes game-owned types to the rest of `src/`.
+This example shows the container API only. A consuming program owns the
+composition root and passes resolved values to the modules that need them.
 
 ## Design rules
 
@@ -46,11 +45,10 @@ The container is intentionally modest. If a concrete system later needs scoped l
 
 ## Change isolation guarantee
 
-The game-facing contract is `nordtech::ApplicationServicesBuilder` / `ApplicationServices` plus the typed bundle owned by `src/app/`, not `DependencyBuilder` / `DependencyContainer`. Keep all references to `nord_dependency` inside `crates/nordtech`; `src/` and all other engine crates must not import it. Engine and gameplay modules receive narrow values and must not store or query the container.
-
-This means an implementation rewrite, a different storage strategy, a different container crate, or public API changes in `nord_dependency` should require edits only in `crates/nordtech`. The game entry point exposes a general error interface rather than leaking either container's error type. `scripts/check_architecture.ps1` checks this boundary, and `scripts/validate.ps1` runs that guard automatically.
-
-When a service is added or replaced, update its registration and mapping in the adapter. Only update a consumer when its actual required capability or behavior changes; that change is independent of the DI implementation. This keeps dependency-manager changes from spreading through `src/` while still making real application dependencies explicit.
+The container is an optional independent capability. Programs that do not need
+runtime service lookup do not need to use it. Nord Tech crates do not register
+or resolve each other's services; the consuming program decides which values
+to share and how to pass them.
 
 ## Research basis
 

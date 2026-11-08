@@ -1,6 +1,6 @@
 //! Stable application-facing facade over Nord's crash diagnostics.
 
-pub use nord_crash::{
+pub use nordtech::crash::{
     CrashReporterConfig as ApplicationCrashReporterConfig,
     CrashReporterDiagnostics as ApplicationCrashReporterDiagnostics,
     CrashReporterInitError as ApplicationCrashReporterInitError,
@@ -9,7 +9,7 @@ pub use nord_crash::{
 /// Process-lifetime owner of the application's panic hook and native monitor.
 #[must_use = "retain the crash reporter for the application lifetime"]
 pub struct ApplicationCrashReporter {
-    reporter: nord_crash::CrashReporter,
+    reporter: nordtech::crash::CrashReporter,
 }
 
 impl ApplicationCrashReporter {
@@ -30,7 +30,7 @@ impl ApplicationCrashReporter {
     where
         F: Fn() + Send + Sync + 'static,
     {
-        nord_crash::CrashReporter::initialize(config, before_panic)
+        nordtech::crash::CrashReporter::initialize(config, before_panic)
             .map(|reporter| Self { reporter })
     }
 

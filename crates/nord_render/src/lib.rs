@@ -312,6 +312,7 @@ impl Error for RenderError {}
 /// A renderer bound to one application-owned native surface.
 pub struct Renderer {
     services: RenderServices,
+    worker_pool: rayon::ThreadPool,
     #[cfg(target_os = "windows")]
     backend: d3d12::D3d12Renderer,
     #[cfg(not(target_os = "windows"))]
@@ -335,8 +336,14 @@ impl Renderer {
         }
         #[cfg(target_os = "windows")]
         {
-            d3d12::D3d12Renderer::new(native_window, config)
-                .map(|backend| Self { backend, services: RenderServices::default() })
+            let worker_pool = rayon::ThreadPoolBuilder::new().build().map_err(|error| {
+                RenderError::Backend(format!("creating renderer worker pool: {error}"))
+            })?;
+            d3d12::D3d12Renderer::new(native_window, config).map(|backend| Self {
+                backend,
+                services: RenderServices::default(),
+                worker_pool,
+            })
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -349,6 +356,12 @@ impl Renderer {
     /// handles created from these services.
     pub fn services(&mut self) -> &mut RenderServices {
         &mut self.services
+    }
+
+    /// Worker pool owned by this renderer for pass encoding and native recording.
+    #[must_use]
+    pub fn worker_pool(&self) -> &rayon::ThreadPool {
+        &self.worker_pool
     }
 
     /// Query the OS-reported memory budget for one adapter memory segment.
@@ -614,12 +627,11 @@ impl Renderer {
         &self,
         graph: &CompiledRenderGraph,
         resources: &TransientResources,
-        jobs: &nord_jobs::JobSystem,
     ) -> Result<RecordedGraphBarriers, RenderError> {
         #[cfg(target_os = "windows")]
         {
             self.backend
-                .record_graph_barriers_parallel(graph, &resources.handles, jobs)
+                .record_graph_barriers_parallel(graph, &resources.handles, &self.worker_pool)
                 .map(|backend| RecordedGraphBarriers { backend })
         }
         #[cfg(not(target_os = "windows"))]
@@ -658,7 +670,6 @@ impl Renderer {
         graph: &CompiledRenderGraph,
         resources: &TransientResources,
         buffers: &[RenderCommandBuffer],
-        jobs: &nord_jobs::JobSystem,
     ) -> Result<RecordedGraphCommands, RenderError> {
         #[cfg(target_os = "windows")]
         {
@@ -668,7 +679,7 @@ impl Renderer {
                     graph,
                     &resources.handles,
                     buffers,
-                    jobs,
+                    &self.worker_pool,
                 )
                 .map(|backend| RecordedGraphCommands { backend })
         }

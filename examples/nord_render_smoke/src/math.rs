@@ -1,6 +1,6 @@
 //! Stable game-facing aliases for Nord math primitives.
 
-pub use nord_math::{
+pub use nordtech::math::{
     Aabb3 as ApplicationAabb3, Affine2 as ApplicationAffine2, Affine3 as ApplicationAffine3,
     DVec2 as ApplicationDVec2, DVec3 as ApplicationDVec3, DVec4 as ApplicationDVec4,
     Frustum3 as ApplicationFrustum3, GeometryError as ApplicationGeometryError,
@@ -19,4 +19,4 @@ pub use nord_math::{
 };
 
 /// Game-facing octree type alias.
-pub type ApplicationOctree<T> = nord_math::Octree<T>;
+pub type ApplicationOctree<T> = nordtech::math::Octree<T>;

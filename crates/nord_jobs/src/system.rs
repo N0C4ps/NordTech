@@ -1,9 +1,9 @@
-use nord_threading::ThreadPool;
 use rayon::iter::IndexedParallelIterator;
 use rayon::prelude::{
     IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
     ParallelSliceMut,
 };
+use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -13,17 +13,51 @@ pub struct JobSystem {
     pool: Arc<ThreadPool>,
 }
 
-impl JobSystem {
-    /// Bind the job system to the application's explicitly owned pool.
+/// Worker-pool configuration owned by this job system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JobSystemConfig {
+    worker_threads: NonZeroUsize,
+}
+
+impl JobSystemConfig {
+    /// Create a configuration with an explicit worker count.
     #[must_use]
-    pub fn new(pool: Arc<ThreadPool>) -> Self {
-        Self { pool }
+    pub const fn new(worker_threads: NonZeroUsize) -> Self {
+        Self { worker_threads }
+    }
+
+    /// Number of workers used by this job system.
+    #[must_use]
+    pub const fn worker_threads(self) -> NonZeroUsize {
+        self.worker_threads
+    }
+}
+
+impl Default for JobSystemConfig {
+    fn default() -> Self {
+        let available = std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN).get();
+        Self {
+            worker_threads: NonZeroUsize::new(available.saturating_sub(1).max(1))
+                .unwrap_or(NonZeroUsize::MIN),
+        }
+    }
+}
+
+impl JobSystem {
+    /// Create a job system with its own worker pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Rayon build error if the worker pool cannot be created.
+    pub fn new(config: JobSystemConfig) -> Result<Self, rayon::ThreadPoolBuildError> {
+        let pool = ThreadPoolBuilder::new().num_threads(config.worker_threads.get()).build()?;
+        Ok(Self { pool: Arc::new(pool) })
     }
 
     /// Number of dedicated workers available to scheduled jobs.
     #[must_use]
     pub fn worker_threads(&self) -> NonZeroUsize {
-        self.pool.worker_threads()
+        NonZeroUsize::new(self.pool.current_num_threads()).unwrap_or(NonZeroUsize::MIN)
     }
 
     /// Run a read-only operation over a slice in parallel.
@@ -118,5 +152,19 @@ impl JobSystem {
         RightOperation: FnOnce() -> Right + Send,
     {
         self.pool.install(|| rayon::join(left, right))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{JobSystem, JobSystemConfig};
+    use std::num::NonZeroUsize;
+
+    #[test]
+    fn owned_pool_runs_jobs_and_preserves_map_order() {
+        let jobs = JobSystem::new(JobSystemConfig::new(NonZeroUsize::new(2).unwrap())).unwrap();
+        assert_eq!(jobs.worker_threads().get(), 2);
+        assert_eq!(jobs.map(&[1, 2, 3, 4], |value| value * value), [1, 4, 9, 16]);
+        assert_eq!(jobs.map_owned(vec![4, 3, 2, 1], |value| value + 1), [5, 4, 3, 2]);
     }
 }

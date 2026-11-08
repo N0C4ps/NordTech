@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::path::Path;
 use std::time::Duration;
 
-pub use nord_platform::{
+pub use nordtech::platform::{
     DisplayError as ApplicationDisplayError, DisplayMonitor as ApplicationDisplayMonitor,
     DisplayRect as ApplicationDisplayRect, EventError as ApplicationEventError,
     FileAccess as ApplicationFileAccess, FileDisposition as ApplicationFileDisposition,
@@ -32,7 +32,7 @@ pub enum ApplicationPlatformBackend {
 
 /// Error encountered while initializing application platform services.
 #[derive(Debug)]
-pub struct ApplicationPlatformError(nord_platform::PathError);
+pub struct ApplicationPlatformError(nordtech::platform::PathError);
 
 impl Display for ApplicationPlatformError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
@@ -51,7 +51,7 @@ impl Error for ApplicationPlatformError {
 /// Keep this facade in the application service registry. Game modules consume
 /// `nordtech` APIs and do not depend directly on the implementation crate.
 pub struct ApplicationPlatform {
-    inner: nord_platform::Platform,
+    inner: nordtech::platform::Platform,
 }
 
 impl ApplicationPlatform {
@@ -62,7 +62,7 @@ impl ApplicationPlatform {
     /// Returns an error when the application identifier cannot be used for
     /// platform paths.
     pub fn initialize(application_id: &str) -> Result<Self, ApplicationPlatformError> {
-        nord_platform::Platform::initialize(application_id)
+        nordtech::platform::Platform::initialize(application_id)
             .map(|inner| Self { inner })
             .map_err(ApplicationPlatformError)
     }
@@ -71,9 +71,9 @@ impl ApplicationPlatform {
     #[must_use]
     pub const fn backend(&self) -> ApplicationPlatformBackend {
         match self.inner.info().backend() {
-            nord_platform::BackendKind::Windows => ApplicationPlatformBackend::Windows,
-            nord_platform::BackendKind::Linux => ApplicationPlatformBackend::Linux,
-            nord_platform::BackendKind::MacOs => ApplicationPlatformBackend::MacOs,
+            nordtech::platform::BackendKind::Windows => ApplicationPlatformBackend::Windows,
+            nordtech::platform::BackendKind::Linux => ApplicationPlatformBackend::Linux,
+            nordtech::platform::BackendKind::MacOs => ApplicationPlatformBackend::MacOs,
             _ => ApplicationPlatformBackend::Other,
         }
     }
@@ -239,7 +239,7 @@ impl ApplicationPlatform {
 
 /// Stable application facade for querying connected displays.
 pub struct ApplicationDisplayManager<'a> {
-    inner: &'a nord_platform::DisplayManager,
+    inner: &'a nordtech::platform::DisplayManager,
 }
 
 impl ApplicationDisplayManager<'_> {
@@ -280,7 +280,7 @@ impl ApplicationDisplayManager<'_> {
 /// Cloneable producer for normalized application and native subsystem events.
 #[derive(Clone)]
 pub struct ApplicationEventEmitter {
-    inner: nord_platform::EventEmitter,
+    inner: nordtech::platform::EventEmitter,
 }
 
 impl ApplicationEventEmitter {

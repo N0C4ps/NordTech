@@ -1,10 +1,8 @@
 # Configuration system
 
-`nord_config` is the engine's format-independent configuration loader. The
-game defines its own typed schema in `src/app/config.rs`; `nordtech` re-exports
-the loader as the stable application facade. This keeps the game independent
-from the loader implementation and lets each engine crate own only its own
-configuration types.
+`nord_config` is a format-independent configuration loader, available through
+`nordtech::config`. It owns file parsing and value composition only. A
+consuming program defines its own schema, defaults, validation, and policy.
 
 ## Sources and precedence
 
@@ -21,12 +19,8 @@ files are errors. Deserialization and application validation happen after all
 sources have been merged, so consumers only receive a complete, validated
 configuration.
 
-Nord loads `%APPDATA%/Nord/nord.toml` on Windows through the platform-provided
-configuration directory. If it is absent, the typed defaults are used. Set
-`NORD_CONFIG_FILE` to load a required JSON or TOML file from another path. The
-tracked [`nord.example.toml`](../config/nord.example.toml) and
-[`nord.example.json`](../config/nord.example.json) demonstrate the current
-game-owned schema in both supported formats.
+The loader does not select a path or read process environment automatically;
+the consuming program chooses its sources and precedence.
 
 ## Environment variables
 
@@ -56,26 +50,7 @@ the format explicitly for extensionless files. TOML and JSON deserialize into
 the same Serde schema, so format choice does not change game configuration
 semantics.
 
-## Current game schema
-
-| Setting | Default | Validation |
-| --- | ---: | --- |
-| `application.title` | `Nord` | Non-empty, up to 128 bytes |
-| `window.width` | `1280` | Positive client width in pixels |
-| `window.height` | `720` | Positive client height in pixels |
-| `window.resizable` | `true` | Boolean |
-| `memory.budget_bytes` | no limit | Optional positive limit for explicitly tracked game-owned CPU buffers |
-| `threading.worker_threads` | available parallelism minus one, minimum one | Positive integer when set |
-| `tasks.queue_capacity` | `2048` | Legacy scheduler setting; accepted and validated, but currently inactive |
-| `tasks.max_in_flight` | no limit | Legacy scheduler setting; currently inactive |
-| `tasks.priority_aging_interval_ms` | `250` | Legacy scheduler setting; currently inactive |
-| `timing.max_frame_delta_ms` | `250` | 1–60,000 |
-| `timing.fixed_step_ns` | `16,666,667` | 1–10,000,000,000 |
-| `timing.max_steps_per_frame` | `8` | 1–1,000 |
-| `timing.time_scale` | `1.0` | Finite, 0–100 |
-
-Unknown fields are denied at each schema level, and omitted fields inherit
-defaults. The validated timing values configure the runtime frame clock and
-fixed-step simulation. Configuration hot reload, profile selection, remote
-providers, and secret stores are intentionally future capabilities; they can be
-added behind the loader/facade without coupling `src/` to a parser crate.
+The loader does not impose a game schema, application directory, or runtime
+clock. Configuration hot reload, profile selection, remote providers, and
+secret stores belong in a consumer or in a future crate with its own explicit
+API.

@@ -1,0 +1,12 @@
+[package]
+name = "nord_render_smoke"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nordtech = { path = "../../crates/nordtech" }
+raw-window-handle = "0.6.2"
+
+[lints]
+workspace = true

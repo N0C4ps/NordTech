@@ -6,4 +6,4 @@
 
 mod system;
 
-pub use system::JobSystem;
+pub use system::{JobSystem, JobSystemConfig};

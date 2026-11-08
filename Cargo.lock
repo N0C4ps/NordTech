@@ -856,35 +856,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "nordtech"
-version = "0.1.0"
-dependencies = [
- "nord_config",
- "nord_crash",
- "nord_dependency",
- "nord_diagnostics",
- "nord_events",
- "nord_hash",
- "nord_inputs",
- "nord_jobs",
- "nord_json_compressor",
- "nord_log",
- "nord_math",
- "nord_memory",
- "nord_platform",
- "nord_render",
- "nord_scheduler",
- "nord_threading",
- "nord_time",
- "raw-window-handle",
-]
-
-[[package]]
 name = "nord_camera"
 version = "0.1.0"
-dependencies = [
- "nord_math",
-]
 
 [[package]]
 name = "nord_config"
@@ -933,15 +906,11 @@ dependencies = [
 [[package]]
 name = "nord_inputs"
 version = "0.1.0"
-dependencies = [
- "nord_events",
-]
 
 [[package]]
 name = "nord_jobs"
 version = "0.1.0"
 dependencies = [
- "nord_threading",
  "rayon",
 ]
 
@@ -987,9 +956,6 @@ dependencies = [
 [[package]]
 name = "nord_mesh"
 version = "0.1.0"
-dependencies = [
- "nord_math",
-]
 
 [[package]]
 name = "nord_physics"
@@ -999,8 +965,6 @@ version = "0.1.0"
 name = "nord_platform"
 version = "0.1.0"
 dependencies = [
- "nord_events",
- "nord_inputs",
  "raw-window-handle",
  "windows-sys",
 ]
@@ -1010,17 +974,24 @@ name = "nord_render"
 version = "0.1.0"
 dependencies = [
  "blake3",
- "nord_jobs",
- "nord_threading",
  "raw-window-handle",
+ "rayon",
  "windows",
+]
+
+[[package]]
+name = "nord_render_smoke"
+version = "0.1.0"
+dependencies = [
+ "nordtech",
+ "raw-window-handle",
 ]
 
 [[package]]
 name = "nord_scheduler"
 version = "0.1.0"
 dependencies = [
- "nord_threading",
+ "rayon",
 ]
 
 [[package]]
@@ -1037,6 +1008,34 @@ version = "0.1.0"
 [[package]]
 name = "nord_world"
 version = "0.1.0"
+
+[[package]]
+name = "nordtech"
+version = "0.1.0"
+dependencies = [
+ "nord_camera",
+ "nord_config",
+ "nord_crash",
+ "nord_dependency",
+ "nord_diagnostics",
+ "nord_events",
+ "nord_generation",
+ "nord_hash",
+ "nord_inputs",
+ "nord_jobs",
+ "nord_json_compressor",
+ "nord_log",
+ "nord_math",
+ "nord_memory",
+ "nord_mesh",
+ "nord_physics",
+ "nord_platform",
+ "nord_render",
+ "nord_scheduler",
+ "nord_threading",
+ "nord_time",
+ "nord_world",
+]
 
 [[package]]
 name = "num-conv"

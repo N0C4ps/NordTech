@@ -20,8 +20,13 @@ cargo lint
 cargo build --workspace --locked
 ```
 
-`nordtech` is the stable, general-purpose public API facade. Each capability is
-also available from its own crate, so a consuming program can choose the crates
-it needs and compose them explicitly. Crates should not start or coordinate
-other engine capabilities implicitly; cross-crate interaction belongs in the
-consuming program.
+`nordtech` is a module facade over the independent capability crates. For
+example, a program can import `nordtech::platform`, `nordtech::render`, and
+`nordtech::camera`; it can also depend on a single capability crate directly.
+The facade only re-exports modules. Each engine crate has no dependency on
+another Nord crate, and application code owns any integration between them.
+
+The workspace includes `examples/nord_render_smoke`, a small consumer
+application that composes the platform and renderer APIs explicitly.
+See [Public API and composition](docs/public-api.md) for the `nord_app` to
+`nordtech` migration and examples of connecting independent capabilities.

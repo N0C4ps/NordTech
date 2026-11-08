@@ -1,6 +1,6 @@
 //! Stable application-facing facade over Nord's memory services.
 
-pub use nord_memory::{
+pub use nordtech::memory::{
     ArenaAllocationError as ApplicationArenaAllocationError,
     MemoryBudgetError as ApplicationMemoryBudgetError,
     MemoryBudgetSnapshot as ApplicationMemoryBudgetSnapshot,
@@ -12,14 +12,14 @@ pub use nord_memory::{
 /// Application-owned entry point for budgets, arenas, and typed pools.
 #[derive(Debug, Clone)]
 pub struct ApplicationMemoryManager {
-    manager: nord_memory::MemoryManager,
+    manager: nordtech::memory::MemoryManager,
 }
 
 impl ApplicationMemoryManager {
     /// Create the manager with an optional shared reservation limit.
     #[must_use]
     pub fn new(limit_bytes: Option<u64>) -> Self {
-        Self { manager: nord_memory::MemoryManager::new(limit_bytes) }
+        Self { manager: nordtech::memory::MemoryManager::new(limit_bytes) }
     }
 
     /// Reserve bytes against the application's shared memory budget.

@@ -1,10 +1,10 @@
 # Render Infrastructure — Parts 1 and 2
 
-`nord_render` starts the graphics infrastructure only. It knows about a native
-presentation surface and GPU resources, not Nord's voxel world, camera, game
-rules, or scene. `src/render` owns the game's clear color and decides when the
-application asks the renderer to present. `nordtech` is the game-facing facade;
-the game does not depend on `nord_render`, `nord_platform`, or native handles.
+`nord_render` owns graphics infrastructure and knows about a native surface and
+GPU resources. It does not know about world, camera, game rules, or scenes. The
+API is available through `nordtech::render`; a consumer that also uses
+`nordtech::platform` explicitly passes the native window handle to the
+renderer.
 
 ## Current implementation
 
@@ -32,8 +32,8 @@ committed upload buffers. There is no geometry or 3D rendering in Part 1.
 
 ## Part 2: resource-system contracts
 
-The resource-system API now lives in isolated modules under `nord_render` and
-is re-exported to the game only through `nordtech`:
+The resource-system API lives in isolated modules under `nord_render` and is
+available as `nordtech::render`:
 
 - `allocator` provides alignment-aware, best-fit suballocation for device-local
   buffer, non-render-target texture, render-target texture, upload, and readback
@@ -45,7 +45,7 @@ is re-exported to the game only through `nordtech`:
   classes separate RT/DS resources from ordinary resources for tier-1 hardware.
   Before creating a new native heap, the backend queries the DXGI local/non-local
   process budget, trims excess empty heaps, re-queries, then rejects a reservation
-  that would still exceed it. The app facade can query the current budget/usage
+  that would still exceed it. Consumers can query the current budget/usage
   snapshot and explicitly trim excess empty pools; trim waits for GPU idle and
   retains one empty heap per allocation class for reuse.
 - `resources` defines validated buffer, texture, and render-target descriptions,
@@ -78,16 +78,15 @@ is re-exported to the game only through `nordtech`:
   queue-idle wait.
 - `RenderServices` owns allocator, descriptor and pipeline bookkeeping for the
   renderer lifetime. It stays private to the renderer implementation;
-  `nordtech::ApplicationRenderer` exposes operation-specific resource methods
-  and a GPU allocator statistics snapshot without handing `src` the service
-  container.
+  `Renderer` exposes operation-specific resource methods and a GPU allocator
+  statistics snapshot without exposing its service container.
 
-The native object path is now exercised through `ApplicationRenderer`: create
+The native object path is exercised by the consumer example: create
 resources and views, compile/reflect HLSL, create cached root signatures/PSOs,
 bind reflected CBV/SRV/UAV/sampler slots, clear offscreen color/depth
 attachments, issue a triangle draw and compute dispatch, and synchronously read
 back pixels. The bootstrap immediate-pass APIs are backend-neutral and live in
-`nord_render`; `nordtech` owns the game-facing queue facade. The render graph
+`nord_render`; the consumer owns the queue submission sequence. The render graph
 infers read/write hazards, builds deterministic pass order, and plans
 transition/UAV/aliasing barriers. It calculates transient texture lifetimes
 and groups non-overlapping textures with compatible D3D12 heap classes. Each
@@ -110,8 +109,8 @@ non-indexed ranges. The graph checks that those streams were declared as vertex
 or index reads, and the backend checks resource usage, slot layouts, strides,
 offsets, draw counts, and byte ranges before recording. The resulting lists are
 submitted in compiled graph order to one direct queue. Their allocators stay
-alive until the final fence retires. The game uses this path from
-`src/render` for its depth-tested opaque cube pass.
+alive until the final fence retires. The consumer example uses this path for
+its depth-tested opaque cube pass.
 Reflected bounded CBV/SRV/UAV/sampler arrays are represented as descriptor
 tables; native recording checks exact reflected count, heap class, contiguity,
 slot liveness, view kind, and graph declarations before binding the table start.
@@ -125,9 +124,8 @@ attachments must also use views belonging to the exact target.
 
 ## Render-resource verification
 
-Run `scripts/verify_render_resources.ps1` on Windows with a D3D12-capable GPU
-and DXC available on `PATH`. Add `-Release` to run the same smoke check against
-the optimized build. The example exercises real device heaps, buffer upload and
+Run `cargo run -p nord_render_smoke` on Windows with a D3D12-capable GPU and DXC
+available on `PATH`. The example exercises real device heaps, buffer upload and
 byte-for-byte readback, texture and array-layer uploads, SRV/CBV/UAV/RTV/DSV and
 sampler creation including contiguous CBV/SRV/UAV/sampler ranges, DXC compilation/reflection,
 graphics/compute PSO creation and
@@ -146,7 +144,7 @@ have CPU unit tests in `nord_render`.
 
 This verifies resource creation, reflected descriptor binding, native PSO
 execution, draw/dispatch output, readback, and lifetime behavior on the machine
-running the script. It does not certify every adapter/driver combination or
+running the example. It does not certify every adapter/driver combination or
 replace long-running validation, GPU validation layers, or a multi-adapter
 matrix. It also does not prove throughput at production frame scale.
 
@@ -158,26 +156,21 @@ use contiguous descriptor ranges and samplers occupy their own heap. See
 [root-signature descriptor ranges](https://learn.microsoft.com/en-us/windows/win32/direct3d12/creating-root-signature),
 and DXC's [reflected `BindCount`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12shader/ns-d3d12shader-d3d12_shader_input_bind_desc).
 
-The initial game draw lives in `src/render`: it owns its HLSL, vertex data,
-pipeline configuration, and render-graph pass. The renderer remains generic;
+The consumer example owns its HLSL, vertex data, pipeline configuration, and
+render-graph pass. The renderer remains generic;
 `present_texture` copies a completed surface-sized RGBA8 target into the active
 swapchain image, applying and restoring D3D12 resource states around the copy.
 This uses the documented [D3D12 `CopyResource` constraints](https://learn.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12graphicscommandlist-copyresource)
 and [resource barrier rules](https://learn.microsoft.com/en-us/windows/win32/direct3d12/using-resource-barriers-to-synchronize-in-direct3d-12).
-The first 3D camera, indexed mesh, transforms, and depth-tested game pass are
-documented in [Renderer 3D — Stage 1](render-3d-stage-1.md).
-The game's basic opaque material contract lives in `src/render/material.rs`.
-Cargo's build script compiles its HLSL to DXIL in `OUT_DIR`, and the executable
-embeds the bytecode and reflection artifacts. Runtime loading needs no shader
-directory or DXC installation. `nord_render` supplies the generic offline
+Cargo's build script in the consumer example compiles HLSL to DXIL in `OUT_DIR`,
+and the executable embeds the bytecode and reflection artifacts. Runtime
+loading needs no shader directory or DXC installation. `nord_render` supplies the generic offline
 shader-artifact constructor, resource, descriptor, pipeline, and
 command-encoding infrastructure.
 
-`nord_platform` exposes a hidden integration token for a live native window;
-`nordtech` passes it directly to `nord_render`. The token never reaches game
-modules. The runtime handles normalized resize events. During shutdown the
-renderer waits for GPU completion and releases its swapchain before
-`nord_platform` destroys the HWND.
+The consumer obtains a native window handle from `nord_platform` and passes it
+to `nord_render`. During shutdown it waits for GPU completion and drops the
+renderer before destroying the native window.
 
 The renderer is thread-affine for now: create, render, resize, and destroy it on
 the application/window owner thread. GPU submission uses one direct queue;
@@ -191,7 +184,7 @@ encoder callbacks and D3D12 pass command lists are recorded on workers.
 - [Microsoft: `SetMaximumFrameLatency`](https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_3/nf-dxgi1_3-idxgiswapchain2-setmaximumframelatency) requires the waitable-object flag on swapchain creation; the implementation sets both together.
 - [Khronos: Vulkan threading guide](https://docs.vulkan.org/guide/latest/threading.html) describes host-side command recording and separate per-thread command pools. Each D3D12 pass recorder owns its allocator/list pair under the same rule.
 - [Khronos: Vulkan memory allocation guide](https://docs.vulkan.org/guide/latest/memory_allocation.html) motivates suballocation over frequent device-memory allocations. The first upload arena is fence-retired and linear; pooled default-heap allocation remains a later part of the renderer.
-- [`raw-window-handle` 0.6.2](https://docs.rs/raw-window-handle/0.6.2/raw_window_handle/) provides the cross-platform window-handle interchange types used between PAL and the renderer; the platform-specific implementation stays behind `nordtech`.
+- [`raw-window-handle` 0.6.2](https://docs.rs/raw-window-handle/0.6.2/raw_window_handle/) provides the cross-platform window-handle interchange type passed explicitly by the consumer.
 - [Microsoft: D3D12 residency and placed resources](https://learn.microsoft.com/en-us/windows/win32/direct3d12/residency) and [`GetResourceAllocationInfo`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-getresourceallocationinfo) require allocations to respect device-reported size/alignment, and call out distinct heap/resource behavior.
 - [`CreatePlacedResource`](https://learn.microsoft.com/en-us/windows/desktop/api/d3d12/nf-d3d12-id3d12device-createplacedresource) requires the heap offset to satisfy the resource alignment and fit the full allocation.
 - [Microsoft: shader-visible descriptor heaps](https://learn.microsoft.com/en-us/windows/win32/direct3d12/shader-visible-descriptor-heaps) explains the distinct CBV/SRV/UAV and sampler heaps, hardware limits, and why switching heaps can cause GPU idle waits. This informs the stable, separate descriptor spaces.

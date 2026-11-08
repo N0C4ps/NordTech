@@ -1,6 +1,6 @@
 //! Stable application-facing names for Nord's JSON compression utilities.
 
-pub use nord_json_compressor::{
+pub use nordtech::json_compressor::{
     Codec as ApplicationJsonCodec, CompressionError as ApplicationJsonCompressionError,
     CompressionOptions as ApplicationJsonCompressionOptions,
     compress_bytes as application_compress_bytes, compress_json as application_compress_json,

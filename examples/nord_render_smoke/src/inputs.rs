@@ -1,18 +1,17 @@
 //! Stable application facade for normalized keyboard and pointer input.
 
-use nord_events::{DispatchReport, EventSubscription, EventSystemError};
-
-pub use nord_inputs::{InputEvent, KeyCode, Modifiers, PointerButton};
+use nordtech::inputs::{DispatchReport, InputSubscription, InputSystemError, WindowHandle};
+pub use nordtech::inputs::{InputEvent, KeyCode, Modifiers, PointerButton};
 pub type ApplicationInputEvent = InputEvent;
 pub type ApplicationKeyCode = KeyCode;
 pub type ApplicationModifiers = Modifiers;
 pub type ApplicationPointerButton = PointerButton;
-pub type ApplicationInputSubscription = EventSubscription<InputEvent>;
+pub type ApplicationInputSubscription = InputSubscription;
 
 /// Application-owned input state and input-event dispatcher.
 #[derive(Default)]
 pub struct ApplicationInputSystem {
-    inner: nord_inputs::InputSystem,
+    inner: nordtech::inputs::InputSystem,
 }
 
 impl ApplicationInputSystem {
@@ -26,11 +25,11 @@ impl ApplicationInputSystem {
     ///
     /// # Errors
     ///
-    /// Returns [`EventSystemError::ListenerIdExhausted`] if listener IDs run out.
+    /// Returns [`InputSystemError`] if listener IDs run out.
     pub fn subscribe<F>(
         &self,
         callback: F,
-    ) -> Result<ApplicationInputSubscription, EventSystemError>
+    ) -> Result<ApplicationInputSubscription, InputSystemError>
     where
         F: Fn(&InputEvent) + Send + Sync + 'static,
     {
@@ -45,29 +44,25 @@ impl ApplicationInputSystem {
 
     /// Clear held keyboard/pointer state on focus loss and dispatch synthetic releases.
     #[must_use]
-    pub fn release_window(&self, window: nord_events::WindowHandle) -> DispatchReport {
+    pub fn release_window(&self, window: WindowHandle) -> DispatchReport {
         self.inner.release_window(window)
     }
 
     /// Whether a key is held in a window.
     #[must_use]
-    pub fn is_key_pressed(&self, window: nord_events::WindowHandle, key: KeyCode) -> bool {
+    pub fn is_key_pressed(&self, window: WindowHandle, key: KeyCode) -> bool {
         self.inner.is_key_pressed(window, key)
     }
 
     /// Whether a pointer button is held in a window.
     #[must_use]
-    pub fn is_pointer_button_pressed(
-        &self,
-        window: nord_events::WindowHandle,
-        button: PointerButton,
-    ) -> bool {
+    pub fn is_pointer_button_pressed(&self, window: WindowHandle, button: PointerButton) -> bool {
         self.inner.is_pointer_button_pressed(window, button)
     }
 
     /// Most recent pointer position in client pixels.
     #[must_use]
-    pub fn pointer_position(&self, window: nord_events::WindowHandle) -> Option<(f64, f64)> {
+    pub fn pointer_position(&self, window: WindowHandle) -> Option<(f64, f64)> {
         self.inner.pointer_position(window)
     }
 }

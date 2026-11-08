@@ -1,6 +1,6 @@
 //! Stable application-facing facade over Nord's logging infrastructure.
 
-pub use nord_log::{
+pub use nordtech::log::{
     FileRotation as ApplicationLogFileRotation, Instrument as ApplicationInstrument,
     JsonFileConfig as ApplicationJsonFileConfig, LoggerConfig as ApplicationLoggerConfig,
     LoggerDiagnostics as ApplicationLogDiagnostics, LoggerFlushError as ApplicationLogFlushError,
@@ -14,7 +14,7 @@ pub use nord_log::{
 /// Store this service in the application container and retain it until the
 /// process is shutting down so asynchronous sinks can drain and flush.
 pub struct ApplicationLogger {
-    runtime: nord_log::LoggerRuntime,
+    runtime: nordtech::log::LoggerRuntime,
 }
 
 impl ApplicationLogger {
@@ -25,7 +25,7 @@ impl ApplicationLogger {
     /// Returns an error for invalid configuration, file setup failures, or if
     /// another process-wide tracing subscriber is already installed.
     pub fn initialize(config: ApplicationLoggerConfig) -> Result<Self, ApplicationLoggerInitError> {
-        nord_log::LoggerRuntime::initialize(config).map(|runtime| Self { runtime })
+        nordtech::log::LoggerRuntime::initialize(config).map(|runtime| Self { runtime })
     }
 
     /// Current drop and sink error counters.
